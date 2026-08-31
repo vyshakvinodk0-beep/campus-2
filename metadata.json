@@ -1,0 +1,6 @@
+{
+  "name": "CampusInsight AI",
+  "description": "Agentic AI Intelligent Document Analysis & Recommendation Platform for NAAC Criterion 1 (Curricular Aspects)",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
