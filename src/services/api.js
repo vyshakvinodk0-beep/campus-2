@@ -35,10 +35,9 @@ export const authAPI = {
   createUser: (userData) => api.post('/auth/users/create', userData),
   getMe: () => api.get('/auth/me'),
   listUsers: () => api.get('/auth/users'),
+  getUsers: () => api.get('/auth/users'),
   updateUserRole: (userId, role, isActive = true) => api.post('/auth/users/update-role', { user_id: userId, role, is_active: isActive }),
 };
-
-
 
 export const documentAPI = {
   upload: (formData) => api.post('/documents/upload', formData, {
@@ -46,6 +45,7 @@ export const documentAPI = {
     timeout: 300000 // 5 minutes timeout for document upload & processing initiation
   }),
   list: (subCriterion = 'All', validationStatus = 'All') => api.get(`/documents?sub_criterion=${subCriterion}&validation_status=${validationStatus}`),
+  getAll: (subCriterion = 'All', validationStatus = 'All') => api.get(`/documents?sub_criterion=${subCriterion}&validation_status=${validationStatus}`),
   getStatus: (id) => api.get(`/documents/${id}/status`),
   retryProcessing: (id) => api.post(`/documents/${id}/retry`),
   getValidationSummary: (id) => api.get(`/documents/${id}/validation-summary`),
@@ -57,6 +57,7 @@ export const documentAPI = {
   requestRevisionPrincipal: (id, rejection_reason) => api.post(`/documents/${id}/request-revision-principal`, { rejection_reason }),
   delete: (id) => api.delete(`/documents/${id}`),
   searchRag: (query, subCriterion = 'All', docId = null) => api.post('/documents/rag-query', { query, sub_criterion: subCriterion, doc_id: docId }),
+  ragQuery: (query, subCriterion = 'All', docId = null) => api.post('/documents/rag-query', { query, sub_criterion: subCriterion, doc_id: docId }),
 };
 
 export const notificationAPI = {
@@ -64,6 +65,22 @@ export const notificationAPI = {
   markAllRead: () => api.post('/notifications/mark-read'),
 };
 
+export const inboxAPI = {
+  getInbox: () => api.get('/inbox'),
+  markRead: (id) => api.patch(`/inbox/${id}/read`),
+  sendMessage: (payload) => api.post('/inbox/send', payload),
+};
+
+export const searchAPI = {
+  globalSearch: (q) => api.get(`/search/global?q=${encodeURIComponent(q)}`),
+};
+
+export const adminAPI = {
+  getConfig: () => api.get('/admin/config'),
+  updateConfig: (config) => api.patch('/admin/config', config),
+  reindexRag: () => api.post('/admin/reindex-rag'),
+  clearCache: () => api.post('/admin/clear-cache'),
+};
 
 export const criterionAPI = {
   getAnalyses: () => api.get('/criterion/analyses'),
@@ -71,6 +88,8 @@ export const criterionAPI = {
   getGaps: (subCriterion = 'All') => api.get(`/criterion/gaps?sub_criterion=${subCriterion}`),
   updateGapStatus: (gapId, status) => api.patch(`/criterion/gaps/${gapId}/status`, { status }),
   getRecommendations: (subCriterion = 'All') => api.get(`/criterion/recommendations?sub_criterion=${subCriterion}`),
+  getEvidence: (subCriterion = 'All') => api.get(`/metrics/matrix?sub_criterion=${subCriterion}`),
+  getEvidenceMatrix: (subCriterion = 'All') => api.get(`/metrics/matrix?sub_criterion=${subCriterion}`),
   reanalyze: () => api.post('/criterion/reanalyze'),
 };
 
@@ -81,6 +100,8 @@ export const analyticsAPI = {
   getTrustCenter: () => api.get('/analytics/trust-center'),
   getDataLineage: (metricId) => api.get(`/analytics/data-lineage/${metricId}`),
   getShapExplanation: (subCriterion) => api.get(`/analytics/shap-explanation/${subCriterion}`),
+  getAuditTrail: () => api.get('/analytics/audit-trail'),
+  getQualityGate: () => api.get('/criterion/quality-gate'),
 };
 
 export const metricsAPI = {
@@ -111,6 +132,8 @@ export const reportAPI = {
     });
   }
 };
+
+export const reportsAPI = reportAPI;
 
 
 export default api;

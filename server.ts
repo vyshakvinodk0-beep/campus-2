@@ -927,23 +927,53 @@ async function startServer() {
 
   app.post('/api/documents/rag-query', async (req: Request, res: Response) => {
     const { query, sub_criterion } = req.body;
+    const qLower = (query || '').toLowerCase().trim();
+
     const relevantDocs = sub_criterion && sub_criterion !== 'All'
       ? db.documents.filter(d => d.sub_criterion === sub_criterion)
       : db.documents;
-    
-    const context = relevantDocs.map(d => `Document: ${d.original_name}\nSub-criterion: ${d.sub_criterion}\nText: ${d.extracted_text}`).join('\n\n');
-    const answer = await askGemini(query || 'Summarize NAAC compliance for Criterion 1', context);
+
+    // Retrieve matching evidence snippets from database
+    const matchingEvidence = db.evidence.filter(e => {
+      if (sub_criterion && sub_criterion !== 'All' && e.sub_criterion !== sub_criterion) return false;
+      const text = (e.evidence_text || '').toLowerCase();
+      const metric = (e.metric_id || '').toLowerCase();
+      const keywords = qLower.split(' ').filter((w: string) => w.length > 3);
+      return keywords.some((k: string) => text.includes(k) || metric.includes(k));
+    });
+
+    const sources = (matchingEvidence.length > 0 ? matchingEvidence : db.evidence.slice(0, 3)).map(ev => ({
+      id: ev.id,
+      metric_id: ev.metric_id,
+      filename: ev.source_filename || relevantDocs[0]?.original_name || 'Curricular_Aspects_SSR_Criterion1.pdf',
+      sub_criterion: ev.sub_criterion,
+      page_number: ev.page_number || 1,
+      snippet: ev.evidence_text || 'EVIDENCE NOT FOUND'
+    }));
+
+    // If query has no relevance to Criterion 1 or no evidence exists
+    const isCriterion1Related = qLower.includes('curricul') || qLower.includes('bos') || qLower.includes('syllabus') || qLower.includes('cbcs') || qLower.includes('feedback') || qLower.includes('atr') || qLower.includes('value-added') || qLower.includes('naac') || qLower.includes('criterion') || qLower.includes('po-co') || qLower.includes('enrichment') || qLower.includes('flexibility') || qLower.includes('elective') || qLower.includes('1.1') || qLower.includes('1.2') || qLower.includes('1.3') || qLower.includes('1.4') || qLower.length === 0;
+
+    let answer = '';
+    if (!isCriterion1Related && matchingEvidence.length === 0) {
+      answer = 'I could not find verified supporting evidence in the indexed Criterion 1 documents. CampusInsight AI strictly isolates NAAC Criterion 1 (Curricular Aspects: 1.1, 1.2, 1.3, 1.4) and refuses to infer unverified or non-Criterion 1 claims.';
+    } else {
+      const context = sources.map(s => `[Document: ${s.filename}, Page ${s.page_number}, Metric: ${s.metric_id}]: ${s.snippet}`).join('\n\n');
+      const prompt = `You are the CampusInsight AI Evidence-Grounded Assistant for NAAC Criterion 1 (Curricular Aspects).
+Answer the user's question STRICTLY using the provided verified evidence context below.
+For every claim you state, cite the specific Source Document, Page Number, and Metric ID.
+If the evidence does not contain the answer, explicitly state: "I could not find verified supporting evidence in the indexed Criterion 1 documents."
+Never hallucinate or guess.
+
+User Query: ${query || 'Summarize NAAC Criterion 1 readiness and verified evidence'}`;
+
+      answer = await askGemini(prompt, context);
+    }
 
     res.json({
       query,
       answer,
-      sources: relevantDocs.map(d => ({
-        id: d.id,
-        filename: d.original_name,
-        sub_criterion: d.sub_criterion,
-        page_number: 1,
-        snippet: d.extracted_text?.slice(0, 150)
-      }))
+      sources
     });
   });
 
@@ -1017,6 +1047,15 @@ async function startServer() {
     }
     if (priority && priority !== 'All') {
       list = list.filter(r => r.priority === priority);
+    }
+    res.json(list);
+  });
+
+  app.get('/api/criterion/evidence', (req: Request, res: Response) => {
+    const { sub_criterion } = req.query;
+    let list = [...db.evidence];
+    if (sub_criterion && sub_criterion !== 'All') {
+      list = list.filter(e => e.sub_criterion === sub_criterion);
     }
     res.json(list);
   });

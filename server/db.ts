@@ -553,12 +553,12 @@ class DatabaseStore {
         id: this.analysisSeq++,
         sub_criterion: '1.1',
         title: 'Curriculum Design and Development',
-        score: 85.0,
-        cgpa_equivalent: 3.40,
-        readiness_level: 'Good (A Grade)',
-        evidence_count: 8,
-        gap_count: 1,
-        summary: 'Verified alignment of Programme Outcomes (PO), Programme Specific Outcomes (PSO), and Course Outcomes (CO). Board of Studies (BOS) revised 24% of core courses in 2024.'
+        score: 51.5,
+        cgpa_equivalent: 2.06,
+        readiness_level: 'Developing (B Grade)',
+        evidence_count: 3,
+        gap_count: 3,
+        summary: 'Evaluated Sub-criterion 1.1 (Metrics 1.1.1, 1.1.2, 1.1.3). Curricular planning claim identified on Page 2 (Metric 1.1.1, verification required). Missing comparative syllabus delta tables (1.1.2) and employability mapping matrices (1.1.3).'
       },
       {
         id: this.analysisSeq++,
@@ -600,17 +600,55 @@ class DatabaseStore {
       {
         id: this.gapSeq++,
         sub_criterion: '1.1',
-        title: 'PO-PSO-CO Articulation Matrix — Verification Required',
-        description: 'The SSR reports that Course Outcomes (CO) are mapped to Programme Outcomes (PO) and Programme Specific Outcomes (PSO). The reported practice is therefore not classified as missing. However, the underlying approved/signed mapping matrix should be verified as supporting evidence for peer-team audit readiness.',
+        title: 'Curricular Planning, Implementation & Articulation Matrix (Metric 1.1.1)',
+        description: 'The SSR narrative claims effective curriculum planning and PO-CO alignment. The underlying approved/signed CO-PO-PSO articulation matrix and academic calendar adherence records require verification as supporting evidence for peer-team audit readiness.',
         severity: 'Medium',
         status: 'Open',
-        missing_evidence: 'Approved/Signed Department CO-PO-PSO Articulation Matrix',
-        recommended_action: 'Verify and upload the approved/signed CO-PO-PSO articulation matrix if it is not already available in the institutional evidence repository.',
+        source_document_id: doc1Id,
+        source_page_numbers: '2',
+        missing_evidence: 'Approved/Signed Department CO-PO-PSO Articulation Matrix & Academic Calendar Adherence Records',
+        recommended_action: 'Verify and upload the approved/signed CO-PO-PSO articulation matrix and academic calendar adherence records if already available in the department vault; otherwise retrieve and countersign from records.',
         evidence_status: 'PARTIALLY_VERIFIED',
         claim_status: 'FOUND',
         supporting_doc_status: 'NOT_VERIFIED',
-        why_flagged_reason: 'SSR explicitly reports CO-PO-PSO mapping and attainment process. Verification of signed underlying matrix recommended for peer-team audit readiness.',
-        priority_reason: 'The institutional practice is reported, but supporting documentation requires verification for 100% audit readiness.',
+        why_flagged_reason: 'SSR narrative claims PO-CO alignment and structured academic planning. Underlying approved articulation matrix and calendar adherence records require verification.',
+        priority_reason: 'Institutional claim identified in SSR text, but supporting physical artifact requires verification for 100% audit readiness.',
+        created_at: now
+      },
+      {
+        id: this.gapSeq++,
+        sub_criterion: '1.1',
+        title: 'Programme Syllabus Revision Records & Comparative Delta (Metric 1.1.2)',
+        description: 'Syllabus revision percentage is claimed in SSR narrative, but comparative old vs new syllabus delta matrices and Academic Council approval notifications are missing from uploaded text.',
+        severity: 'High',
+        status: 'Open',
+        source_document_id: doc1Id,
+        source_page_numbers: 'Not Found',
+        missing_evidence: 'Comparative Course Delta Matrices (Old vs New) & Academic Council Approval Notices',
+        recommended_action: 'Prepare structured old vs new curriculum comparison tables highlighting modified course content percentages and secure Academic Council gazette notifications.',
+        evidence_status: 'EVIDENCE_NOT_FOUND',
+        claim_status: 'NOT_FOUND',
+        supporting_doc_status: 'MISSING',
+        why_flagged_reason: 'Programme syllabus revision claimed, but documentary delta tables and formal approval notifications are missing from source document.',
+        priority_reason: 'Mandatory NAAC Metric 1.1.2 quantitative proof for syllabus revision percentage.',
+        created_at: now
+      },
+      {
+        id: this.gapSeq++,
+        sub_criterion: '1.1',
+        title: 'Course Syllabi Focusing on Employability / Skill Development (Metric 1.1.3)',
+        description: 'Focus on employability, entrepreneurship, and skill development claimed, but course syllabi with highlighted units and mapping matrices are missing from uploaded text.',
+        severity: 'High',
+        status: 'Open',
+        source_document_id: doc1Id,
+        source_page_numbers: 'Not Found',
+        missing_evidence: 'Course Syllabi with Highlighted Skill Units & Mapping Matrices',
+        recommended_action: 'Map all course catalog offerings against NSDC/AICTE skill development categories with syllabus-level unit highlighting and secure BOS/Academic Council endorsement.',
+        evidence_status: 'EVIDENCE_NOT_FOUND',
+        claim_status: 'NOT_FOUND',
+        supporting_doc_status: 'MISSING',
+        why_flagged_reason: 'Employability and skill development course focus missing highlighted syllabus-level documentation.',
+        priority_reason: 'Mandatory NAAC Metric 1.1.3 course mapping and syllabus highlighting requirement.',
         created_at: now
       },
       {
@@ -652,29 +690,87 @@ class DatabaseStore {
       {
         id: this.recSeq++,
         sub_criterion: '1.1',
+        source_document_id: doc1Id,
         category: 'EVIDENCE_BASED',
-        title: 'Recommendation: PO-PSO-CO Articulation Matrix — Verification Required',
-        recommendation_text: 'Verify and upload the approved/signed CO-PO-PSO articulation matrix if it is not already available in the institutional evidence repository.',
+        title: 'Verify Curricular Planning Documentation & Articulation Matrix (Metric 1.1.1)',
+        recommendation_text: 'Verify and upload the approved/signed CO-PO-PSO articulation matrix and academic calendar adherence records if already available in the department vault; otherwise retrieve and countersign from records.',
         priority: 'Medium',
         evidence_status: 'PARTIALLY_VERIFIED',
         claim_status: 'FOUND',
         supporting_doc_status: 'NOT_VERIFIED',
-        required_document: 'Approved/Signed Department CO-PO-PSO Articulation Matrix',
-        responsible_role: 'Faculty / HOD',
-        why_flagged_reason: 'SSR explicitly reports CO-PO-PSO mapping. Verification of underlying matrix recommended for peer-team audit readiness.',
-        priority_reason: 'The institutional practice is reported, but supporting documentation requires verification for 100% audit readiness.',
+        required_document: 'Approved/Signed Department CO-PO-PSO Articulation Matrix & Academic Calendar Adherence Records',
+        responsible_role: 'Faculty / Course Coordinators',
+        why_flagged_reason: 'SSR explicitly reports CO-PO-PSO mapping and curricular planning. Verification of signed underlying matrix recommended for peer-team audit readiness.',
+        priority_reason: 'Institutional claim identified in text, but supporting documentation requires verification for 100% audit readiness.',
         shap_explanation_json: {
           sub_criterion: '1.1',
-          predicted_score: 85.0,
+          predicted_score: 51.5,
           feature_contributions: [
-            { feature_name: 'PO_CO_Mapping_Density', shap_value: 8.5, description: 'Direct positive contribution from mapped outcomes' },
-            { feature_name: 'Curriculum_Revision_Recency', shap_value: 8.0, description: 'Recent 24% syllabus revision ratified' },
-            { feature_name: 'Missing_Signed_Matrix_Penalty', shap_value: -6.5, description: 'Pending signed articulation matrix verification' }
+            { feature_name: 'Metric_1.1.1_Claim_Found', shap_value: 12.0, description: 'Narrative curricular planning claim identified on Page 2' },
+            { feature_name: 'Metric_1.1.1_Unverified_Artifact_Penalty', shap_value: -8.0, description: 'Pending signed articulation matrix verification' },
+            { feature_name: 'Metric_1.1.2_Missing_Evidence_Penalty', shap_value: -15.0, description: 'Missing old vs new comparative syllabus delta matrices' },
+            { feature_name: 'Metric_1.1.3_Missing_Evidence_Penalty', shap_value: -15.0, description: 'Missing course syllabi highlighting skill development units' }
           ]
         },
         action_items: [
-          'Verify signed CO-PO-PSO articulation matrix in departmental repository.',
-          'Upload signed matrix copy to CampusInsight Vault.'
+          'Verify and upload approved/signed CO-PO-PSO articulation matrix if already available in department vault.',
+          'Compile academic calendar adherence and curricular planning delivery logs signed by HOD.'
+        ],
+        created_at: now
+      },
+      {
+        id: this.recSeq++,
+        sub_criterion: '1.1',
+        source_document_id: doc1Id,
+        category: 'EVIDENCE_BASED',
+        title: 'Compile Old vs New Syllabus Revision Delta Matrices (Metric 1.1.2)',
+        recommendation_text: 'Prepare structured old vs new curriculum comparison tables highlighting modified course content percentages and secure Academic Council gazette notifications.',
+        priority: 'High',
+        evidence_status: 'EVIDENCE_NOT_FOUND',
+        claim_status: 'NOT_FOUND',
+        supporting_doc_status: 'MISSING',
+        required_document: 'Comparative Course Delta Matrices (Old vs New) & Academic Council Approval Notices',
+        responsible_role: 'HOD / Curriculum Committee',
+        why_flagged_reason: 'Mandatory NAAC Metric 1.1.2 syllabus revision percentage proof missing from uploaded text.',
+        priority_reason: 'High priority quantitative audit compliance for programme syllabus revision.',
+        shap_explanation_json: {
+          sub_criterion: '1.1',
+          predicted_score: 51.5,
+          feature_contributions: [
+            { feature_name: 'Missing_Old_Vs_New_Delta_Penalty', shap_value: -15.0, description: 'Absence of syllabus comparison tables' }
+          ]
+        },
+        action_items: [
+          'Construct detailed course-by-course old vs new syllabus comparison tables highlighting content revision percentages.',
+          'Attach Academic Council approval notifications and Board of Studies resolution dates.'
+        ],
+        created_at: now
+      },
+      {
+        id: this.recSeq++,
+        sub_criterion: '1.1',
+        source_document_id: doc1Id,
+        category: 'EVIDENCE_BASED',
+        title: 'Map Course Syllabi to Employability / Skill Development Modules (Metric 1.1.3)',
+        recommendation_text: 'Map all course catalog offerings against NSDC/AICTE skill development categories with syllabus-level unit highlighting and secure BOS/Academic Council endorsement.',
+        priority: 'High',
+        evidence_status: 'EVIDENCE_NOT_FOUND',
+        claim_status: 'NOT_FOUND',
+        supporting_doc_status: 'MISSING',
+        required_document: 'Course Syllabi with Highlighted Skill Units & Mapping Matrices',
+        responsible_role: 'Department NAAC Coordinator',
+        why_flagged_reason: 'Mandatory NAAC Metric 1.1.3 course mapping and syllabus unit highlighting requirement.',
+        priority_reason: 'High priority evidence gap for courses focusing on employability and entrepreneurship.',
+        shap_explanation_json: {
+          sub_criterion: '1.1',
+          predicted_score: 51.5,
+          feature_contributions: [
+            { feature_name: 'Missing_Skill_Mapping_Penalty', shap_value: -15.0, description: 'Absence of highlighted syllabi and skill mapping matrices' }
+          ]
+        },
+        action_items: [
+          'Highlight specific units focusing on employability, entrepreneurship, and skill development across all course syllabi.',
+          'Generate consolidated department mapping matrix endorsed by Academic Council.'
         ],
         created_at: now
       },
@@ -877,30 +973,45 @@ Action Taken Report (ATR): Introduced elective course CSE-402 Agentic AI and Clo
         document_id: doc1Id,
         metric_id: '1.1.1',
         sub_criterion: '1.1',
-        evidence_text: 'Resolution 1: Revised 24% of core curriculum content including Artificial Intelligence, Cloud Computing, and Agentic AI (BOS Minutes 2024).',
+        evidence_text: 'Resolution 2: Formulated explicit Course Outcomes (CO) aligned to NBA/NAAC Programme Outcomes (PO1 to PO12) and PSOs.',
         page_number: 2,
-        confidence: 95.0,
+        confidence: 88.0,
         relevance_status: 'Relevant',
-        evidence_status: 'FOUND',
+        evidence_status: 'VERIFICATION_REQUIRED',
         claim_status: 'FOUND',
-        supporting_doc_status: 'VERIFIED',
+        supporting_doc_status: 'NOT_VERIFIED',
         source_filename: 'B.Tech CSE Curriculum Revision & BOS Minutes 2024.pdf',
-        verification_notes: 'Verified by HOD Dr. Vikramaditya Singh'
+        verification_notes: 'Narrative claim identified in text; signed CO-PO-PSO articulation matrix is pending verification in repository.'
       },
       {
         id: this.evSeq++,
         document_id: doc1Id,
         metric_id: '1.1.2',
         sub_criterion: '1.1',
-        evidence_text: 'Formulated explicit Course Outcomes (CO) aligned to NBA/NAAC Programme Outcomes (PO1 to PO12) and PSOs.',
-        page_number: 4,
-        confidence: 92.0,
-        relevance_status: 'Relevant',
-        evidence_status: 'FOUND',
-        claim_status: 'FOUND',
-        supporting_doc_status: 'VERIFIED',
+        evidence_text: 'EVIDENCE NOT FOUND: No comparative old vs new syllabus revision delta matrix or Academic Council approval notification found.',
+        page_number: null,
+        confidence: null,
+        relevance_status: 'Non-Relevant',
+        evidence_status: 'EVIDENCE_NOT_FOUND',
+        claim_status: 'NOT_FOUND',
+        supporting_doc_status: 'MISSING',
         source_filename: 'B.Tech CSE Curriculum Revision & BOS Minutes 2024.pdf',
-        verification_notes: 'Verified by Principal Prof. Ananya Roy'
+        verification_notes: 'No comparative old vs new syllabus revision delta matrix found in uploaded text.'
+      },
+      {
+        id: this.evSeq++,
+        document_id: doc1Id,
+        metric_id: '1.1.3',
+        sub_criterion: '1.1',
+        evidence_text: 'EVIDENCE NOT FOUND: Direct course outcome attainment calculation spreadsheets and employability mapping matrices not detected.',
+        page_number: null,
+        confidence: null,
+        relevance_status: 'Non-Relevant',
+        evidence_status: 'EVIDENCE_NOT_FOUND',
+        claim_status: 'NOT_FOUND',
+        supporting_doc_status: 'MISSING',
+        source_filename: 'B.Tech CSE Curriculum Revision & BOS Minutes 2024.pdf',
+        verification_notes: 'No direct employability/skill course mapping matrices found in uploaded text.'
       },
       {
         id: this.evSeq++,
