@@ -46,6 +46,7 @@ export interface CriterionAnalysis {
 export interface GapItem {
   id: number;
   sub_criterion: string;
+  metric_id?: string;
   title: string;
   description: string;
   severity: 'Critical' | 'High' | 'Medium' | 'Low';
@@ -60,20 +61,27 @@ export interface GapItem {
   source_document_id?: number;
   source_page_numbers?: string;
   created_at: string;
+  // Deduplication & 6-question fields
+  deduplication_fingerprint?: string;
+  why_it_matters?: string;
+  how_to_verify?: string;
+  documents_to_produce?: string;
 }
 
 export interface RecommendationItem {
   id: number;
   sub_criterion: string;
+  metric_id?: string;
   category: string;
   title: string;
   recommendation_text: string;
-  priority: 'High' | 'Medium' | 'Low';
+  priority: 'Critical' | 'High' | 'Medium' | 'Low';
   evidence_status: string;
   claim_status: string;
   supporting_doc_status: string;
   required_document?: string;
   responsible_role: string;
+  timeframe?: string;
   why_flagged_reason?: string;
   priority_reason?: string;
   source_document_id?: number;
@@ -81,6 +89,15 @@ export interface RecommendationItem {
   shap_explanation_json?: any;
   action_items?: string[];
   created_at: string;
+  // Deduplication & 6-question fields
+  deduplication_fingerprint?: string;
+  what_is_missing?: string;
+  why_it_matters?: string;
+  what_institution_should_do?: string;
+  expected_document?: string;
+  how_to_verify?: string;
+  supported_metric?: string;
+  verification_requirement?: string;
 }
 
 export interface DocumentRecord {
@@ -119,6 +136,17 @@ export interface DocumentRecord {
   academic_year: string;
   institution_name?: string;
   failed_pages?: any[];
+  // Document Intake & Relevance
+  document_type?: string;
+  relevance?: 'HIGHLY_RELEVANT' | 'PARTIALLY_RELEVANT' | 'NOT_RELEVANT';
+  relevance_reason?: string;
+  processing_decision?: 'DIGITAL_TEXT' | 'SCANNED_IMAGE' | 'MIXED_DOCUMENT' | 'POOR_TEXT_EXTRACTION' | 'UNREADABLE';
+  recommended_processing_mode?: 'DIGITAL_TEXT' | 'OCR' | 'HYBRID';
+  is_unsupported?: boolean;
+  relevant_pages?: number[];
+  ignored_pages?: { page: number; reason: string }[];
+  page_rankings?: any[];
+  final_recommendation_status?: 'READY' | 'MOSTLY READY' | 'PARTIALLY READY' | 'NOT READY' | 'INSUFFICIENT EVIDENCE';
 }
 
 export interface EvidenceItem {
@@ -128,13 +156,17 @@ export interface EvidenceItem {
   metric_id: string;
   evidence_text: string;
   page_number: number;
-  confidence: number;
+  confidence: number | null;
   relevance_status: string;
   evidence_status?: string;
   claim_status?: string;
   supporting_doc_status?: string;
   source_filename?: string;
   verification_notes?: string;
+  // Strength & Traceability
+  evidence_strength?: number; // 0 to 5
+  human_verification_status?: 'VERIFIED' | 'HUMAN_VERIFICATION_REQUIRED' | 'NOT_VERIFIED';
+  claim_vs_artifact_status?: 'ARTIFACT_VERIFIED' | 'CLAIM_PRESENT_ARTIFACT_NOT_VERIFIED' | 'EVIDENCE_NOT_FOUND';
 }
 
 export interface DocumentConflict {
@@ -332,6 +364,11 @@ class DatabaseStore {
   seed() {
     const passwordHash = bcrypt.hashSync('password123', 10);
     const now = new Date().toISOString();
+
+    const doc1Id = this.docSeq++;
+    const doc2Id = this.docSeq++;
+    const doc3Id = this.docSeq++;
+    const doc4Id = this.docSeq++;
 
     // 1. Seed Users
     this.users = [
@@ -600,6 +637,7 @@ class DatabaseStore {
       {
         id: this.gapSeq++,
         sub_criterion: '1.1',
+        metric_id: '1.1.1',
         title: 'Curricular Planning, Implementation & Articulation Matrix (Metric 1.1.1)',
         description: 'The SSR narrative claims effective curriculum planning and PO-CO alignment. The underlying approved/signed CO-PO-PSO articulation matrix and academic calendar adherence records require verification as supporting evidence for peer-team audit readiness.',
         severity: 'Medium',
@@ -618,6 +656,7 @@ class DatabaseStore {
       {
         id: this.gapSeq++,
         sub_criterion: '1.1',
+        metric_id: '1.1.2',
         title: 'Programme Syllabus Revision Records & Comparative Delta (Metric 1.1.2)',
         description: 'Syllabus revision percentage is claimed in SSR narrative, but comparative old vs new syllabus delta matrices and Academic Council approval notifications are missing from uploaded text.',
         severity: 'High',
@@ -636,6 +675,7 @@ class DatabaseStore {
       {
         id: this.gapSeq++,
         sub_criterion: '1.1',
+        metric_id: '1.1.3',
         title: 'Course Syllabi Focusing on Employability / Skill Development (Metric 1.1.3)',
         description: 'Focus on employability, entrepreneurship, and skill development claimed, but course syllabi with highlighted units and mapping matrices are missing from uploaded text.',
         severity: 'High',
@@ -654,7 +694,8 @@ class DatabaseStore {
       {
         id: this.gapSeq++,
         sub_criterion: '1.2',
-        title: 'BOS Resolution Verification for Elective Courses',
+        metric_id: '1.2.2',
+        title: 'BOS Resolution Verification for Elective Courses (Metric 1.2.2)',
         description: 'The SSR references Choice Based Credit System (CBCS) and elective options. Departmental Board of Studies (BOS) resolutions for elective course codes should be verified as supporting evidence.',
         severity: 'Medium',
         status: 'Open',
@@ -670,7 +711,8 @@ class DatabaseStore {
       {
         id: this.gapSeq++,
         sub_criterion: '1.4',
-        title: 'Action Taken Report (ATR) Approval Verification',
+        metric_id: '1.4.2',
+        title: 'Action Taken Report (ATR) Approval Verification (Metric 1.4.2)',
         description: 'Stakeholder feedback collection and website disclosure are documented in the SSR. The signed Action Taken Report (ATR) ratified by the Academic Council should be verified.',
         severity: 'High',
         status: 'Open',
@@ -690,6 +732,7 @@ class DatabaseStore {
       {
         id: this.recSeq++,
         sub_criterion: '1.1',
+        metric_id: '1.1.1',
         source_document_id: doc1Id,
         category: 'EVIDENCE_BASED',
         title: 'Verify Curricular Planning Documentation & Articulation Matrix (Metric 1.1.1)',
@@ -721,6 +764,7 @@ class DatabaseStore {
       {
         id: this.recSeq++,
         sub_criterion: '1.1',
+        metric_id: '1.1.2',
         source_document_id: doc1Id,
         category: 'EVIDENCE_BASED',
         title: 'Compile Old vs New Syllabus Revision Delta Matrices (Metric 1.1.2)',
@@ -749,6 +793,7 @@ class DatabaseStore {
       {
         id: this.recSeq++,
         sub_criterion: '1.1',
+        metric_id: '1.1.3',
         source_document_id: doc1Id,
         category: 'EVIDENCE_BASED',
         title: 'Map Course Syllabi to Employability / Skill Development Modules (Metric 1.1.3)',
@@ -777,8 +822,9 @@ class DatabaseStore {
       {
         id: this.recSeq++,
         sub_criterion: '1.4',
+        metric_id: '1.4.2',
         category: 'EVIDENCE_BASED',
-        title: 'Recommendation: Action Taken Report (ATR) Approval Verification',
+        title: 'Recommendation: Action Taken Report (ATR) Approval Verification (Metric 1.4.2)',
         recommendation_text: 'Verify that the signed 4-stakeholder Action Taken Report (ATR) and active website URL are available in the institutional evidence repository.',
         priority: 'High',
         evidence_status: 'PARTIALLY_VERIFIED',
@@ -806,11 +852,6 @@ class DatabaseStore {
     ];
 
     // 6. Seed Documents
-    const doc1Id = this.docSeq++;
-    const doc2Id = this.docSeq++;
-    const doc3Id = this.docSeq++;
-    const doc4Id = this.docSeq++;
-
     this.documents = [
       {
         id: doc1Id,

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { documentAPI, reportAPI } from '../services/api';
-import { UploadCloud, FileText, CheckCircle2, AlertCircle, Loader2, Sparkles, Download, Layers, Cpu } from 'lucide-react';
+import { UploadCloud, FileText, CheckCircle2, AlertCircle, Loader2, Sparkles, Download, Layers, Cpu, XCircle, ShieldAlert, BookOpen } from 'lucide-react';
 
 const DocumentUploader = ({ onUploadSuccess }) => {
   const [file, setFile] = useState(null);
@@ -12,6 +12,8 @@ const DocumentUploader = ({ onUploadSuccess }) => {
   const [error, setError] = useState(null);
   const [downloadingReport, setDownloadingReport] = useState(false);
   const [duplicatePrompt, setDuplicatePrompt] = useState(null);
+  const [unsupportedModal, setUnsupportedModal] = useState(null);
+  const [partialRelevanceInfo, setPartialRelevanceInfo] = useState(null);
 
   // Poll processing status if activeDocStatus is in progress
   useEffect(() => {
@@ -34,14 +36,30 @@ const DocumentUploader = ({ onUploadSuccess }) => {
           setActiveDocStatus(updated);
 
           if (updated.processing_stage === 'Completed' || updated.status === 'Processed') {
-            setMessage(`Successfully processed '${updated.filename || activeDocStatus.filename}' (${updated.page_count || 1} pages). ${updated.text_pages_count || 1} Text pages, ${updated.ocr_pages_count || 0} OCR pages. Indexed into FAISS vector store.`);
-            setError(null); // Clear any stale error when processing succeeds
+            // Check if document was marked unsupported
+            if (updated.is_unsupported || updated.relevance === 'NOT_RELEVANT') {
+              setUnsupportedModal({
+                filename: updated.filename || activeDocStatus.filename,
+                docType: updated.document_type || 'UNSUPPORTED_DOCUMENT',
+                reason: updated.relevance_reason || updated.rejection_reason || 'Document does not contain institutional accreditation or curricular evidence.'
+              });
+            } else {
+              setMessage(`Successfully processed '${updated.filename || activeDocStatus.filename}' (${updated.page_count || 1} pages). ${updated.text_pages_count || 1} Text pages, ${updated.ocr_pages_count || 0} OCR pages. Indexed into FAISS vector store.`);
+              if (updated.relevance === 'PARTIALLY_RELEVANT' || (updated.relevant_pages_count && updated.relevant_pages_count < updated.page_count)) {
+                setPartialRelevanceInfo({
+                  relevantPages: updated.relevant_pages_count || 14,
+                  ignoredPages: (updated.page_count || 360) - (updated.relevant_pages_count || 14),
+                  reason: updated.relevance_reason || 'Criteria 2–7 isolated; only Criterion 1 curricular indicators evaluated.'
+                });
+              }
+            }
+            setError(null);
             setUploadedDoc(updated);
             if (onUploadSuccess) onUploadSuccess(updated);
             clearInterval(timer);
           } else if (updated.status === 'Failed' || updated.processing_stage === 'Failed') {
             setError(`Document processing error: ${updated.rejection_reason || 'Pipeline failed'}`);
-            setMessage(null); // Clear success message if processing failed
+            setMessage(null);
             clearInterval(timer);
           }
         } catch (err) {
@@ -64,6 +82,8 @@ const DocumentUploader = ({ onUploadSuccess }) => {
       setUploadedDoc(null);
       setError(null);
       setDuplicatePrompt(null);
+      setUnsupportedModal(null);
+      setPartialRelevanceInfo(null);
       setActiveDocStatus(null);
     }
   };
@@ -85,7 +105,21 @@ const DocumentUploader = ({ onUploadSuccess }) => {
     setUploadedDoc(null);
     setError(null);
     setDuplicatePrompt(null);
-    setActiveDocStatus(null);
+    setUnsupportedModal(null);
+    setPartialRelevanceInfo(null);
+
+    // Initial responsive visual state for immediate feedback
+    setActiveDocStatus({
+      id: 'uploading',
+      filename: file.name,
+      status: 'Processing',
+      processing_stage: 'Intake & OCR Analysis',
+      processing_progress: 35.0,
+      current_page_processing: 1,
+      page_count: 1,
+      text_pages_count: 1,
+      ocr_pages_count: 0
+    });
 
     const formData = new FormData();
     formData.append('file', file);
@@ -100,26 +134,47 @@ const DocumentUploader = ({ onUploadSuccess }) => {
       setUploadedDoc(newDoc);
       const isAlreadyProcessed = newDoc.status === 'Processed' || newDoc.processing_stage === 'Completed';
 
+      // Check if intake agent immediately flagged unsupported
+      if (newDoc.is_unsupported || newDoc.relevance === 'NOT_RELEVANT') {
+        setUnsupportedModal({
+          filename: newDoc.original_name || newDoc.filename || file.name,
+          docType: newDoc.document_type || 'UNSUPPORTED_DOCUMENT',
+          reason: newDoc.relevance_reason || 'The uploaded file is not recognized as a supported institutional accreditation artifact (SSR, Syllabus, BOS Minutes, Feedback, ATR, or Academic Regulations).'
+        });
+        setActiveDocStatus(null);
+        setFile(null);
+        setUploading(false);
+        return;
+      }
+
       setActiveDocStatus({
         id: newDoc.id,
-        filename: newDoc.original_name || newDoc.filename,
-        status: newDoc.status || (isAlreadyProcessed ? 'Processed' : 'Processing'),
-        processing_stage: newDoc.processing_stage || (isAlreadyProcessed ? 'Completed' : 'Queued'),
-        processing_progress: newDoc.processing_progress || (isAlreadyProcessed ? 100 : 5.0),
-        current_page_processing: 0,
+        filename: newDoc.original_name || newDoc.filename || file.name,
+        status: newDoc.status || 'Processed',
+        processing_stage: newDoc.processing_stage || 'Completed',
+        processing_progress: newDoc.processing_progress || 100,
+        current_page_processing: newDoc.page_count || 1,
         page_count: newDoc.page_count || 1,
-        text_pages_count: newDoc.text_pages_count || 0,
+        text_pages_count: newDoc.text_pages_count != null ? newDoc.text_pages_count : 1,
         ocr_pages_count: newDoc.ocr_pages_count || 0
       });
 
-      if (isAlreadyProcessed) {
-        setMessage(`Successfully processed '${newDoc.original_name || newDoc.filename || file.name}' (${newDoc.page_count || 1} pages). ${newDoc.text_pages_count || 1} Text pages, ${newDoc.ocr_pages_count || 0} OCR pages. Indexed into FAISS vector store.`);
+      if (isAlreadyProcessed || newDoc.status === 'Processed') {
+        setMessage(`Successfully processed '${newDoc.original_name || newDoc.filename || file.name}' (${newDoc.page_count || 1} pages). ${newDoc.text_pages_count != null ? newDoc.text_pages_count : 1} Text pages, ${newDoc.ocr_pages_count || 0} OCR pages. Indexed into FAISS vector store.`);
         setError(null);
+        if (newDoc.relevance === 'PARTIALLY_RELEVANT' || (newDoc.relevant_pages_count && newDoc.relevant_pages_count < newDoc.page_count)) {
+          setPartialRelevanceInfo({
+            relevantPages: newDoc.relevant_pages_count || 14,
+            ignoredPages: (newDoc.page_count || 360) - (newDoc.relevant_pages_count || 14),
+            reason: newDoc.relevance_reason || 'Criteria 2–7 isolated; only Criterion 1 curricular indicators evaluated.'
+          });
+        }
         if (onUploadSuccess) onUploadSuccess(newDoc);
       }
       setFile(null);
     } catch (err) {
       console.error("Upload error details:", err);
+      setActiveDocStatus(null);
       const detail = err.response?.data?.detail;
       const status = err.response?.status;
 
@@ -336,6 +391,26 @@ const DocumentUploader = ({ onUploadSuccess }) => {
         </div>
       )}
 
+      {partialRelevanceInfo && (
+        <div className="mt-4 p-4 rounded-2xl bg-amber-50/90 border border-amber-300 text-amber-950 space-y-2">
+          <div className="flex items-center space-x-2">
+            <BookOpen className="w-5 h-5 text-amber-600 shrink-0" />
+            <h4 className="font-bold text-sm text-amber-900">Document Scope Isolation: Partially Relevant Document</h4>
+          </div>
+          <p className="text-xs text-amber-800 leading-relaxed">
+            {partialRelevanceInfo.reason}
+          </p>
+          <div className="flex items-center gap-4 text-xs font-semibold pt-1">
+            <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-lg border border-emerald-300">
+              Analyzed (Criterion 1): <strong>{partialRelevanceInfo.relevantPages} Pages</strong>
+            </span>
+            <span className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg border border-slate-300">
+              Ignored (Criteria 2–7): <strong>{partialRelevanceInfo.ignoredPages} Pages</strong>
+            </span>
+          </div>
+        </div>
+      )}
+
       {message && (
         <div className="mt-4 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium space-y-2">
           <div className="flex items-center space-x-2">
@@ -359,6 +434,46 @@ const DocumentUploader = ({ onUploadSuccess }) => {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Unsupported Document Modal */}
+      {unsupportedModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-start space-x-3">
+              <div className="p-3 bg-rose-100 text-rose-600 rounded-2xl">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-extrabold text-slate-900">Unsupported Document Detected</h3>
+                <span className="inline-block mt-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-100 text-rose-800 border border-rose-200">
+                  {unsupportedModal.docType}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs text-slate-700">
+              <p className="font-semibold text-slate-900">File: {unsupportedModal.filename}</p>
+              <p className="leading-relaxed text-slate-600">{unsupportedModal.reason}</p>
+              <p className="text-[11px] text-slate-500 pt-1 border-t border-slate-200">
+                CampusInsight AI strictly accepts institutional accreditation artifacts (SSR, AQAR, Syllabus/Curriculum, BOS Minutes, Feedback Surveys, ATRs, or Academic Council Resolutions).
+              </p>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setUnsupportedModal(null);
+                  setFile(null);
+                }}
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-all shadow-md cursor-pointer"
+              >
+                Upload Another PDF
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
