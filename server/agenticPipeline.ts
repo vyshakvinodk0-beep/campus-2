@@ -1,5 +1,6 @@
 import { DocumentAnalysisResult, ExtractedPage, DocumentType, DocumentRelevance, ProcessingDecision, RecommendedProcessingMode } from './pdfEngine';
 import { db, DocumentRecord, EvidenceItem, GapItem, RecommendationItem, AuditLog, calculateDeterministicScore, ScoreBreakdown, DocumentConflict } from './db';
+import { HardVerifiedGate, buildRegistryFromPipeline, ConsistencyValidator, EvidenceRegistryItem } from './evidenceRegistry';
 
 export type EvidenceStatus = 'VERIFIED' | 'PARTIALLY_VERIFIED' | 'NOT_VERIFIED' | 'MISSING' | 'CONFLICTING' | 'LOW_CONFIDENCE' | 'SUPPORTED' | 'PARTIALLY_SUPPORTED' | 'EVIDENCE_NOT_FOUND';
 export type GapSeverity = 'Critical' | 'High' | 'Medium' | 'Low';
@@ -591,32 +592,32 @@ export async function executeMultiAgentPipeline(
       claimText = `Institutional practice documented for ${item.title} on Page ${bestMatchPage.pageNumber}.`;
       
       if (hasSupportingDocEvidence && !isDemo) {
-        evStatus = 'VERIFIED';
+        evStatus = 'PARTIALLY_VERIFIED'; // Proposed status only; finalized by HardVerifiedGate
         suppDocStatus = 'VERIFIED';
         claimVsArtifactStatus = 'ARTIFACT_VERIFIED';
-        humanVerificationStatus = 'VERIFIED';
-        evidenceStrength = 5;
-        confidence = 95.0;
-        verificationNotes = `Direct artifact verified on Page ${bestMatchPage.pageNumber}. Supporting documentation '${item.expected_evidence}' validated against NAAC benchmark.`;
-        scoreContribution = item.scoring_weight;
+        humanVerificationStatus = 'HUMAN_VERIFICATION_REQUIRED';
+        evidenceStrength = 4;
+        confidence = 90.0;
+        verificationNotes = `Direct candidate artifact detected on Page ${bestMatchPage.pageNumber} matching '${item.expected_evidence}'. Subject to deterministic gate validation.`;
+        scoreContribution = 0;
       } else if (hasSupportingDocEvidence && isDemo) {
-        evStatus = 'PARTIALLY_VERIFIED';
+        evStatus = 'NOT_VERIFIED';
         suppDocStatus = 'PARTIAL';
         claimVsArtifactStatus = 'CLAIM_PRESENT_ARTIFACT_NOT_VERIFIED';
         humanVerificationStatus = 'HUMAN_VERIFICATION_REQUIRED';
-        evidenceStrength = 3;
-        confidence = 90.0;
-        verificationNotes = `Demonstration/sample record detected on Page ${bestMatchPage.pageNumber}. Institutional human endorsement required before NAAC peer audit.`;
-        scoreContribution = Math.round(item.scoring_weight * 0.7);
+        evidenceStrength = 1;
+        confidence = 0;
+        verificationNotes = `Demonstration/sample record detected on Page ${bestMatchPage.pageNumber}. Demonstration content cannot produce verified evidence.`;
+        scoreContribution = 0;
       } else {
         evStatus = 'PARTIALLY_VERIFIED';
         suppDocStatus = 'NOT_VERIFIED';
         claimVsArtifactStatus = 'CLAIM_PRESENT_ARTIFACT_NOT_VERIFIED';
         humanVerificationStatus = 'HUMAN_VERIFICATION_REQUIRED';
         evidenceStrength = 2;
-        confidence = 88.0;
+        confidence = 80.0;
         verificationNotes = `Claim identified on Page ${bestMatchPage.pageNumber}, but supporting artifact '${item.expected_evidence}' was not verified.`;
-        scoreContribution = Math.round(item.scoring_weight * 0.5);
+        scoreContribution = 0;
       }
     } else if (matchScore === 1 && bestMatchPage) {
       claimStatus = 'FOUND';
@@ -685,6 +686,38 @@ export async function executeMultiAgentPipeline(
       score_contribution: scoreContribution
     });
   }
+
+  // -------------------------------------------------------------
+  // CANONICAL EVIDENCE REGISTRY & HARD VERIFICATION GATE
+  // -------------------------------------------------------------
+  const evidenceRegistry = buildRegistryFromPipeline(
+    evidenceMatrix,
+    isDemo,
+    docRecord.id,
+    analysis.filename
+  );
+
+  // Synchronize evidenceMatrix with deterministic gate evaluation results
+  evidenceRegistry.forEach((regItem, idx) => {
+    const ev = evidenceMatrix[idx];
+    if (ev) {
+      ev.evidence_status = regItem.backend_verified_status as EvidenceStatus;
+      ev.evidence_strength = regItem.evidence_strength;
+      ev.human_verification_status = regItem.human_verification_required 
+        ? 'HUMAN_VERIFICATION_REQUIRED' 
+        : (regItem.backend_verified_status === 'VERIFIED' ? 'VERIFIED' : 'NOT_VERIFIED');
+      ev.claim_vs_artifact_status = regItem.backend_verified_status === 'VERIFIED'
+        ? 'ARTIFACT_VERIFIED'
+        : (regItem.artifact_found ? 'CLAIM_PRESENT_ARTIFACT_NOT_VERIFIED' : 'EVIDENCE_NOT_FOUND');
+      ev.verification_notes = regItem.verification_notes || ev.verification_notes;
+      if (regItem.backend_verified_status === 'VERIFIED') {
+        const kb = CRITERION_1_KNOWLEDGE_BASE.find(k => k.metric_id === ev.metric_id);
+        ev.score_contribution = kb?.scoring_weight || 10;
+      } else {
+        ev.score_contribution = 0;
+      }
+    }
+  });
 
   // -------------------------------------------------------------
   // AGENT 6: CONSISTENCY & CONFLICT AGENT
@@ -841,28 +874,57 @@ export async function executeMultiAgentPipeline(
     }
   });
 
+  // Synchronize Evidence Registry, Gaps, and Recommendations with Central Database Store
+  db.evidence = db.evidence.filter(e => e.document_id !== docRecord.id);
+  for (const regItem of evidenceRegistry) {
+    db.evidence.push({
+      id: db.evidence.length + 1,
+      document_id: docRecord.id,
+      sub_criterion: regItem.sub_criterion || targetSubCriterion || '1.1',
+      metric_id: regItem.metric_id,
+      evidence_text: regItem.extracted_text,
+      page_number: regItem.page_number || 0,
+      confidence: regItem.confidence,
+      relevance_status: regItem.backend_verified_status === 'VERIFIED' ? 'Relevant' : 'Unverified',
+      evidence_status: regItem.backend_verified_status,
+      claim_status: regItem.claim_text && regItem.claim_text !== 'Not found in the uploaded document.' ? 'FOUND' : 'NOT_FOUND',
+      supporting_doc_status: regItem.backend_verified_status === 'VERIFIED' ? 'VERIFIED' : (regItem.artifact_found ? 'PARTIAL' : 'NOT_VERIFIED'),
+      source_filename: analysis.filename,
+      verification_notes: regItem.verification_notes,
+      evidence_strength: regItem.evidence_strength,
+      human_verification_status: regItem.human_verification_required ? 'HUMAN_VERIFICATION_REQUIRED' : (regItem.backend_verified_status === 'VERIFIED' ? 'VERIFIED' : 'NOT_VERIFIED'),
+      claim_vs_artifact_status: regItem.backend_verified_status === 'VERIFIED' ? 'ARTIFACT_VERIFIED' : (regItem.artifact_found ? 'CLAIM_PRESENT_ARTIFACT_NOT_VERIFIED' : 'EVIDENCE_NOT_FOUND')
+    });
+  }
+
+  db.gaps = db.gaps.filter(g => g.source_document_id !== docRecord.id);
+  db.gaps.push(...generatedGaps);
+
+  db.recommendations = db.recommendations.filter(r => r.source_document_id !== docRecord.id);
+  db.recommendations.push(...generatedRecommendations);
+
   // -------------------------------------------------------------
   // AGENT 9: DETERMINISTIC SCORING & EXPLAINABILITY (SHAP/XAI) AGENT
   // -------------------------------------------------------------
   const totalCheckpoints = evidenceMatrix.length;
   const verifiedCount = evidenceMatrix.filter(e => e.evidence_status === 'VERIFIED').length;
   const partialCount = evidenceMatrix.filter(e => e.evidence_status === 'PARTIALLY_VERIFIED').length;
-  const missingCount = evidenceMatrix.filter(e => e.evidence_status === 'EVIDENCE_NOT_FOUND').length;
+  const missingCount = evidenceMatrix.filter(e => e.evidence_status === 'EVIDENCE_NOT_FOUND' || e.evidence_status === 'NOT_VERIFIED' || (e.evidence_status as any) === 'DEMONSTRATION_ONLY').length;
   const conflictingCount = evidenceMatrix.filter(e => e.evidence_status === 'CONFLICTING').length;
-  const unverifiedDocCount = evidenceMatrix.filter(e => e.supporting_doc_status === 'NOT_VERIFIED' || e.supporting_doc_status === 'PARTIAL' || (e.claim_status === 'FOUND' && e.supporting_doc_status !== 'VERIFIED')).length;
+  const unverifiedDocCount = evidenceMatrix.filter(e => e.evidence_status !== 'VERIFIED').length;
 
-  const completenessScore = totalCheckpoints > 0
-    ? Math.round(((verifiedCount * 1.0 + partialCount * 0.5) / totalCheckpoints) * 100)
-    : 0;
+  const completenessScore = (isDemo || totalCheckpoints === 0)
+    ? 0
+    : Math.round((verifiedCount / totalCheckpoints) * 100);
 
-  const foundEvidences = evidenceMatrix.filter(e => e.evidence_status !== 'EVIDENCE_NOT_FOUND' && e.confidence !== null);
-  const relevanceScore = foundEvidences.length > 0
-    ? Math.round(foundEvidences.reduce((acc, e) => acc + (e.confidence || 85), 0) / foundEvidences.length)
-    : (evidenceMatrix.length > 0 && evidenceMatrix.every(e => e.evidence_status === 'EVIDENCE_NOT_FOUND') ? 0 : 85);
+  const foundEvidences = evidenceMatrix.filter(e => e.evidence_status === 'VERIFIED' && e.confidence !== null);
+  const relevanceScore = (isDemo || foundEvidences.length === 0)
+    ? 0
+    : Math.round(foundEvidences.reduce((acc, e) => acc + (e.confidence || 0), 0) / foundEvidences.length);
 
-  const humanGovernanceScore = Math.min(100, Math.max(0, 80 + (docRecord.hod_validated ? 10 : 0) + (docRecord.principal_validated ? 10 : 0) - (unverifiedDocCount * 5)));
-  const consistencyScore = conflictingCount > 0 ? Math.max(20, 100 - (conflictingCount * 40)) : 100;
-  const docQualityScore = analysis.textQualityScore;
+  const humanGovernanceScore = isDemo ? 0 : Math.min(100, Math.max(0, (docRecord.hod_validated ? 50 : 0) + (docRecord.principal_validated ? 50 : 0)));
+  const consistencyScore = conflictingCount > 0 ? Math.max(0, 100 - (conflictingCount * 50)) : 100;
+  const docQualityScore = isDemo ? 0 : analysis.textQualityScore;
 
   const scoreBreakdown = calculateDeterministicScore({
     completeness: completenessScore,
@@ -999,24 +1061,55 @@ export async function executeMultiAgentPipeline(
   let finalRecommendation: FinalReadinessRecommendation = 'NOT READY';
   let finalJustification = '';
 
-  if (scoreBreakdown.finalScore >= 80 && missingCount === 0 && unverifiedDocCount === 0) {
+  if (isDemo) {
+    finalRecommendation = 'INSUFFICIENT EVIDENCE';
+    finalJustification = 'Uploaded document is identified as a demonstration/synthetic/sample document. NAAC accreditation readiness cannot be established from sample or non-genuine institutional artifacts.';
+  } else if (scoreBreakdown.finalScore >= 80 && missingCount === 0 && unverifiedDocCount === 0 && verifiedCount === totalCheckpoints) {
     finalRecommendation = 'READY';
     finalJustification = 'All required Criterion 1 evidence artifacts are verified and substantiated with complete governance approvals.';
-  } else if (scoreBreakdown.finalScore >= 65 && missingCount === 0) {
+  } else if (scoreBreakdown.finalScore >= 65 && verifiedCount >= Math.round(totalCheckpoints * 0.75)) {
     finalRecommendation = 'MOSTLY READY';
     finalJustification = 'Core evidence is present, but physical verification of underlying artifacts is required before peer audit.';
-  } else if (scoreBreakdown.finalScore >= 45) {
+  } else if (scoreBreakdown.finalScore >= 45 && verifiedCount > 0) {
     finalRecommendation = 'PARTIALLY READY';
     finalJustification = 'Institutional claims are documented, but key supporting matrices and statutory notifications are missing from the uploaded file.';
-  } else if (totalCheckpoints > 0 && verifiedCount === 0 && partialCount === 0) {
+  } else if (verifiedCount === 0) {
     finalRecommendation = 'INSUFFICIENT EVIDENCE';
-    finalJustification = 'Uploaded document does not contain enough curricular evidence to make a reliable accreditation judgement.';
+    finalJustification = 'Uploaded document does not contain enough verifiable documentary evidence to make a reliable accreditation judgement.';
   } else {
     finalRecommendation = 'NOT READY';
     finalJustification = 'Substantial documentary gaps exist. Significant evidence compilation is required for NAAC readiness.';
   }
 
   docRecord.final_recommendation_status = finalRecommendation;
+
+  // Update sub-criterion analysis in db.analyses
+  const existingAnalysis = db.analyses.find(a => a.sub_criterion === (targetSubCriterion || '1.1'));
+  if (existingAnalysis) {
+    existingAnalysis.score = scoreBreakdown.finalScore;
+    existingAnalysis.cgpa_equivalent = scoreBreakdown.cgpa;
+    existingAnalysis.readiness_level = finalRecommendation;
+    existingAnalysis.evidence_count = verifiedCount;
+    existingAnalysis.gap_count = generatedGaps.length;
+    existingAnalysis.summary = finalJustification;
+  }
+
+  // Update db.metrics
+  for (const ev of evidenceMatrix) {
+    const targetMetric = db.metrics.find(m => m.metric_id === ev.metric_id);
+    if (targetMetric) {
+      targetMetric.completeness_score = ev.evidence_status === 'VERIFIED' ? 100 : (ev.evidence_status === 'PARTIALLY_VERIFIED' ? 50 : 0);
+      targetMetric.status = ev.evidence_status === 'VERIFIED' ? 'Complete' : (ev.evidence_status === 'PARTIALLY_VERIFIED' ? 'Partial' : 'Missing');
+      targetMetric.ai_confidence = isDemo ? 0 : (ev.confidence ?? 0);
+      targetMetric.human_validation_status = ev.human_verification_status;
+    }
+  }
+
+  // Validate consistency across registry and outputs
+  const validationResult = ConsistencyValidator.check(evidenceRegistry, completenessScore, generatedGaps.length);
+  if (!validationResult.valid) {
+    console.warn('[ConsistencyValidator] Warnings/Errors detected:', validationResult.errors);
+  }
 
   // Build 12-Section Master Report Payload
   const reportSections = {
@@ -1070,7 +1163,7 @@ export async function executeMultiAgentPipeline(
         verificationStatus: e.human_verification_status,
         gap: gap?.description || 'None',
         impact: gap?.priority_reason || 'Neutral',
-        recommendation: rec?.recommendation_text || 'Continue maintaining certified archives.'
+        recommendation: rec?.recommendation_text || (e.evidence_status === 'VERIFIED' ? 'Maintain certified archive in institutional repository.' : 'Verify whether the required artifact exists. If available, upload it for verification.')
       };
     }),
     verifiedConflicts,

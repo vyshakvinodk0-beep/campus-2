@@ -23,10 +23,10 @@ export function generateCsvReport(institution: string, documentId?: number): str
   lines.push('--- 1. EXECUTIVE SUMMARY ---');
   lines.push('Field,Value');
   lines.push(`Document Name,"${docName}"`);
-  lines.push(`Document Type,"${targetDoc?.document_type || 'SUPPORTED_ACADEMIC_EVIDENCE'}"`);
-  lines.push(`Relevance,"${targetDoc?.relevance || 'HIGHLY_RELEVANT'}"`);
-  lines.push(`Processing Decision,"${targetDoc?.processing_decision || 'DIGITAL_TEXT'}"`);
-  lines.push(`Final Readiness Status,"${targetDoc?.final_recommendation_status || 'PARTIALLY READY'}"`);
+  lines.push(`Document Type,"${targetDoc?.document_type || 'NONE'}"`);
+  lines.push(`Relevance,"${targetDoc?.relevance || 'NOT_ASSESSED'}"`);
+  lines.push(`Processing Decision,"${targetDoc?.processing_decision || 'NONE'}"`);
+  lines.push(`Final Readiness Status,"${targetDoc?.final_recommendation_status || 'INSUFFICIENT EVIDENCE'}"`);
   lines.push('');
 
   // 2. DOCUMENT INTELLIGENCE
@@ -89,7 +89,7 @@ export function generateCsvReport(institution: string, documentId?: number): str
     const req = kItem ? kItem.requirement_description : 'NAAC requirement';
     const pageStr = ev.page_number && ev.page_number > 0 ? `Page ${ev.page_number}` : 'Not Found';
     const strength = ev.evidence_strength !== undefined ? ev.evidence_strength : (ev.evidence_status === 'VERIFIED' ? 5 : 2);
-    lines.push(`"${ev.metric_id}","${req.replace(/"/g, '""')}","${(ev.evidence_text || 'Not found in the uploaded document.').replace(/"/g, '""')}","${pageStr}",${strength},"${ev.human_verification_status || 'VERIFIED'}","${(gap?.description || 'None').replace(/"/g, '""')}","${(gap?.recommended_action || 'Maintain certified archive').replace(/"/g, '""')}"`);
+    lines.push(`"${ev.metric_id}","${req.replace(/"/g, '""')}","${(ev.evidence_text || 'Not found in the uploaded document.').replace(/"/g, '""')}","${pageStr}",${strength},"${ev.human_verification_status || 'NOT_VERIFIED'}","${(gap?.description || 'None').replace(/"/g, '""')}","${(gap?.recommended_action || (ev.evidence_status === 'VERIFIED' ? 'Maintain certified archive in institutional repository.' : 'Verify whether the required artifact exists. If available, upload it for verification.')).replace(/"/g, '""')}"`);
   }
   lines.push('');
 
@@ -147,19 +147,47 @@ export function generateCsvReport(institution: string, documentId?: number): str
   lines.push('');
 
   // 11. SCORE & EXPLAINABILITY
+  const verifiedCount = targetEvidence.filter(e => e.evidence_status === 'VERIFIED').length;
+  const totalCount = targetEvidence.length > 0 ? targetEvidence.length : (isSingleSubCriterion ? 2 : 8);
+  const isDemo = (targetDoc?.original_name || targetDoc?.filename || '').toLowerCase().includes('dummy') ||
+                 (targetDoc?.original_name || targetDoc?.filename || '').toLowerCase().includes('demo') ||
+                 (targetDoc?.original_name || targetDoc?.filename || '').toLowerCase().includes('synthetic');
+
+  const compScore = (isDemo || totalCount === 0) ? 0 : Math.round((verifiedCount / totalCount) * 100);
+  const foundEvidences = targetEvidence.filter(e => e.evidence_status === 'VERIFIED' && e.confidence !== null);
+  const relScore = (isDemo || foundEvidences.length === 0) ? 0 : Math.round(foundEvidences.reduce((acc, e) => acc + (e.confidence || 0), 0) / foundEvidences.length);
+  const govScore = isDemo ? 0 : (targetDoc?.validation_status === 'Fully Validated' ? 100 : (targetDoc?.hod_validated ? 50 : 0));
+  const qScore = isDemo ? 0 : (targetDoc?.text_quality_score || 0);
+  const confCount = db.conflicts.filter(c => c.status === 'Open' && (!targetDoc || c.sub_criterion === targetDoc.sub_criterion)).length;
+  
+  const breakdown = calculateDeterministicScore({
+    completeness: compScore,
+    relevance: relScore,
+    human_validation_score: govScore,
+    text_quality_score: qScore,
+    conflicts_count: confCount
+  });
+
   lines.push('--- 11. SCORE & EXPLAINABILITY ---');
   lines.push('Factor,Weight,Score,Contribution (pts),Description');
-  lines.push('Completeness,0.35,50%,17.5 pts,Assesses ratio of verified and usable evidence checkpoints');
-  lines.push('Semantic Match Relevance,0.25,85%,21.3 pts,Evaluates keyword and contextual alignment against NAAC benchmarks');
-  lines.push('Human Governance,0.20,80%,16.0 pts,Measures HOD/Principal sign-off status and unverified claims');
-  lines.push('Document Quality,0.10,94%,9.4 pts,Evaluates text extraction clarity and digital character density');
-  lines.push('Evidentiary Consistency,0.10,100%,10.0 pts,Audits absence of cross-page contradictions');
+  lines.push(`Completeness,0.35,${breakdown.completeness}%,${(breakdown.completeness * 0.35).toFixed(1)} pts,Assesses ratio of verified documentary evidence checkpoints (${verifiedCount}/${totalCount} verified)`);
+  lines.push(`Semantic Match Relevance,0.25,${breakdown.relevance}%,${(breakdown.relevance * 0.25).toFixed(1)} pts,Evaluates keyword and contextual alignment against NAAC benchmarks`);
+  lines.push(`Human Governance,0.20,${breakdown.humanValidation}%,${(breakdown.humanValidation * 0.20).toFixed(1)} pts,Measures HOD/Principal sign-off status and validation stage`);
+  lines.push(`Document Quality,0.10,${breakdown.docQuality}%,${(breakdown.docQuality * 0.10).toFixed(1)} pts,Evaluates text extraction clarity and digital character density`);
+  lines.push(`Evidentiary Consistency,0.10,${breakdown.consistency}%,${(breakdown.consistency * 0.10).toFixed(1)} pts,Audits absence of cross-page contradictions`);
   lines.push('');
 
   // 12. FINAL RECOMMENDATION
+  const justText = isDemo 
+    ? 'Uploaded document is identified as a demonstration/synthetic/sample document. NAAC accreditation readiness cannot be established from sample or non-genuine institutional artifacts.'
+    : (targetDoc?.final_recommendation_status === 'READY'
+        ? 'All required Criterion 1 evidence artifacts are verified and substantiated with complete governance approvals.'
+        : (targetDoc?.final_recommendation_status === 'INSUFFICIENT EVIDENCE'
+            ? 'Uploaded document does not contain enough verifiable documentary evidence to make a reliable accreditation judgement.'
+            : 'Institutional curricular claims are identified, but mandatory countersigned artifacts must be compiled and verified prior to NAAC peer team audit.'));
   lines.push('--- 12. FINAL RECOMMENDATION ---');
   lines.push('Recommendation Status,Justification');
-  lines.push(`"${targetDoc?.final_recommendation_status || 'PARTIALLY READY'}","Institutional curricular claims are identified, but mandatory countersigned artifacts must be compiled and verified prior to NAAC peer team audit."`);
+  lines.push(`"${targetDoc?.final_recommendation_status || 'INSUFFICIENT EVIDENCE'}","${justText}"`);
 
   return lines.join('\n');
 }
@@ -200,29 +228,31 @@ export function generatePdfReport(institution: string, doc?: DocumentRecord): Pr
       const conflictsCount = conflictsList.length;
 
       // Evidence counts
-      const verifiedCount = docEvidence.filter(e => e.evidence_status === 'SUPPORTED' || e.evidence_status === 'VERIFIED').length;
-      const partialCount = docEvidence.filter(e => e.evidence_status === 'PARTIALLY_SUPPORTED' || e.evidence_status === 'PARTIALLY_VERIFIED' || e.evidence_status === 'CLAIM_FOUND_NOT_VERIFIED').length;
-      const missingCount = docEvidence.filter(e => e.evidence_status === 'EVIDENCE_NOT_FOUND' || e.supporting_doc_status === 'MISSING').length;
-      const unverifiedDocCount = docEvidence.filter(e => e.supporting_doc_status === 'NOT_VERIFIED' || e.supporting_doc_status === 'PARTIAL' || (e.claim_status === 'FOUND' && e.supporting_doc_status !== 'VERIFIED')).length;
+      const verifiedCount = docEvidence.filter(e => e.evidence_status === 'VERIFIED').length;
+      const partialCount = docEvidence.filter(e => e.evidence_status === 'PARTIALLY_VERIFIED').length;
+      const missingCount = docEvidence.filter(e => e.evidence_status === 'EVIDENCE_NOT_FOUND' || e.evidence_status === 'NOT_VERIFIED' || (e.evidence_status as any) === 'DEMONSTRATION_ONLY').length;
+      const unverifiedDocCount = docEvidence.filter(e => e.evidence_status !== 'VERIFIED').length;
 
       const assessedKbCount = isSingleSubCriterion
         ? CRITERION_1_KNOWLEDGE_BASE.filter(k => k.sub_criterion === targetSubCrit).length
         : CRITERION_1_KNOWLEDGE_BASE.length;
       const totalCheckpoints = docEvidence.length > 0 ? docEvidence.length : (assessedKbCount || 3);
 
-      const usableEvidenceCount = verifiedCount + partialCount;
-      const completenessScore = Math.min(100, Math.max(0, Math.round(((verifiedCount * 1.0 + partialCount * 0.50) / totalCheckpoints) * 100)));
+      const usableEvidenceCount = verifiedCount;
+      const completenessScore = (isDemo || totalCheckpoints === 0)
+        ? 0
+        : Math.min(100, Math.max(0, Math.round((verifiedCount / totalCheckpoints) * 100)));
       
-      const foundEvidence = docEvidence.filter(e => e.evidence_status !== 'EVIDENCE_NOT_FOUND' && e.confidence !== null);
-      const relevanceScore = foundEvidence.length > 0
-        ? Math.round(foundEvidence.reduce((acc, e) => acc + (e.confidence || 85), 0) / foundEvidence.length)
-        : (docEvidence.length > 0 && docEvidence.every(e => e.evidence_status === 'EVIDENCE_NOT_FOUND') ? 0 : 85);
+      const foundEvidence = docEvidence.filter(e => e.evidence_status === 'VERIFIED' && e.confidence !== null);
+      const relevanceScore = (isDemo || foundEvidence.length === 0)
+        ? 0
+        : Math.round(foundEvidence.reduce((acc, e) => acc + (e.confidence || 0), 0) / foundEvidence.length);
 
       const breakdown = calculateDeterministicScore({
         completeness: completenessScore,
         relevance: relevanceScore,
-        validation_status: targetDoc?.validation_status,
-        text_quality_score: targetDoc?.text_quality_score || 94.0,
+        validation_status: isDemo ? undefined : targetDoc?.validation_status,
+        text_quality_score: isDemo ? 0 : (targetDoc?.text_quality_score || 0),
         conflicts_count: conflictsCount
       });
 
@@ -545,9 +575,17 @@ export function generatePdfReport(institution: string, doc?: DocumentRecord): Pr
       pdf.rect(36, finalTop, CONTENT_WIDTH, 36).fill('#eff6ff').stroke('#bfdbfe');
       pdf.rect(36, finalTop, 4, 36).fill('#1d4ed8');
 
-      pdf.fillColor('#1e40af').fontSize(9).font('Helvetica-Bold').text(`FINAL RECOMMENDATION: ${targetDoc?.final_recommendation_status || 'PARTIALLY READY'}`, 46, finalTop + 5);
+      const pdfStatus = isDemo ? 'INSUFFICIENT EVIDENCE' : (targetDoc?.final_recommendation_status || 'INSUFFICIENT EVIDENCE');
+      pdf.fillColor('#1e40af').fontSize(9).font('Helvetica-Bold').text(`FINAL RECOMMENDATION: ${pdfStatus}`, 46, finalTop + 5);
+      const pdfJustText = isDemo
+        ? 'Uploaded document is identified as a demonstration/synthetic/sample document. NAAC accreditation readiness cannot be established from sample or non-genuine institutional artifacts.'
+        : (pdfStatus === 'READY'
+            ? 'All required Criterion 1 evidence artifacts are verified and substantiated with complete governance approvals.'
+            : (pdfStatus === 'INSUFFICIENT EVIDENCE'
+                ? 'Uploaded document does not contain enough verifiable documentary evidence to make a reliable accreditation judgement.'
+                : 'Institutional curricular practices are identified in text, but supporting documentary evidence must be certified by HOD/Principal before submission for NAAC DVV peer-team audit.'));
       pdf.fontSize(7.5).font('Helvetica').fillColor('#1e3a8a').text(
-        'Institutional curricular practices are identified in text, but supporting documentary evidence must be certified by HOD/Principal before submission for NAAC DVV peer-team audit.',
+        pdfJustText,
         46, finalTop + 17, { width: 505 }
       );
 

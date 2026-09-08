@@ -540,7 +540,7 @@ async function startServer() {
       version: 1,
       version_status: 'Current',
       academic_year: '2024-25',
-      institution_name: 'Sagar Institute of Research & Technology, Bhopal',
+      institution_name: parsedPdf.institutionName || 'Unknown Institution',
       extracted_text: parsedPdf.extractedFullText.slice(0, 3000),
       chunk_count: parsedPdf.pages.length,
       page_count: parsedPdf.totalPages,
@@ -574,15 +574,17 @@ async function startServer() {
 
     const q = query.toLowerCase();
     const matchedEvidence = db.evidence.filter(e => 
-      e.evidence_text.toLowerCase().includes(q) ||
-      e.metric_id.toLowerCase().includes(q) ||
-      (sub_criterion && e.sub_criterion === sub_criterion)
+      e.evidence_status === 'VERIFIED' && (
+        e.evidence_text.toLowerCase().includes(q) ||
+        e.metric_id.toLowerCase().includes(q) ||
+        (sub_criterion && e.sub_criterion === sub_criterion)
+      )
     ).slice(0, 4);
 
     const matchedSources = matchedEvidence.map(ev => {
       const parentDoc = db.documents.find(d => d.id === ev.document_id);
       return {
-        filename: parentDoc?.original_name || parentDoc?.filename || 'Curriculum Revision Minutes 2024.pdf',
+        filename: parentDoc?.original_name || parentDoc?.filename || 'Uploaded Document',
         page_number: ev.page_number,
         snippet: ev.evidence_text
       };
@@ -590,28 +592,22 @@ async function startServer() {
 
     // Generate grounded synthesis
     let answerText = '';
-    const geminiPrompt = `User Query: "${query}"\n\nGrounded Evidence Items:\n${matchedSources.map(s => `- [Page ${s.page_number}] ${s.snippet}`).join('\n')}\n\nProvide a concise, factual answer summarizing whether this evidence satisfies NAAC Criterion 1 requirements, citing exact pages.`;
-    const aiResponse = await askGemini(geminiPrompt, 'You are an institutional accreditation AI specialized in NAAC Criterion 1.');
-    
-    if (aiResponse) {
-      answerText = aiResponse;
-    } else {
-      if (matchedSources.length > 0) {
-        answerText = `Based on institutional documentation for NAAC Criterion 1, ${matchedSources.length} verified evidence checkpoints were retrieved. For example, ${matchedSources[0].snippet.slice(0, 180)}... (Page ${matchedSources[0].page_number}). Requirements are grounded with verified timestamps and approval minutes.`;
+    if (matchedSources.length > 0) {
+      const geminiPrompt = `User Query: "${query}"\n\nGrounded Evidence Items:\n${matchedSources.map(s => `- [Page ${s.page_number}] ${s.snippet}`).join('\n')}\n\nProvide a concise, factual answer summarizing whether this evidence satisfies NAAC Criterion 1 requirements, citing exact pages.`;
+      const aiResponse = await askGemini(geminiPrompt, 'You are an institutional accreditation AI specialized in NAAC Criterion 1.');
+      
+      if (aiResponse) {
+        answerText = aiResponse;
       } else {
-        answerText = `Under NAAC Criterion 1 (Curricular Aspects), institutional readiness requires structured BOS syllabus revision minutes (1.1.2), CBCS implementation orders (1.2.1), 30+ hour value-added courses (1.3.2), and stakeholder feedback with Action Taken Reports (1.4.1 & 1.4.2). No conflicting documentation was detected.`;
+        answerText = `Based on institutional documentation for NAAC Criterion 1, ${matchedSources.length} verified evidence checkpoints were retrieved. For example, ${matchedSources[0].snippet.slice(0, 180)}... (Page ${matchedSources[0].page_number}). Requirements are grounded with verified timestamps and approval minutes.`;
       }
+    } else {
+      answerText = `INSUFFICIENT EVIDENCE: No verified documentary evidence found in uploaded records matching the query '${query}'. Under NAAC Criterion 1 guidelines, claims without verified documentary artifacts cannot be confirmed.`;
     }
 
     return res.json({
       answer: answerText,
-      sources: matchedSources.length > 0 ? matchedSources : [
-        {
-          filename: 'B.Tech CSE Curriculum Revision & BOS Minutes 2024.pdf',
-          page_number: 4,
-          snippet: 'BOS approval resolutions detailing curriculum revision percentage and CO-PO attainment matrices.'
-        }
-      ]
+      sources: matchedSources
     });
   });
 
