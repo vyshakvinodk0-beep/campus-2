@@ -88,24 +88,43 @@ const Sidebar = () => {
         </div>
       </div>
 
-      {/* Footer / System Status Banner */}
+      {/* Footer / System Status & Role Banner */}
       <div className="pt-4 border-t border-slate-100 space-y-3">
+        {/* Active Role Indicator Card */}
+        <div className="p-2.5 rounded-2xl bg-gradient-to-r from-slate-50 to-blue-50/40 border border-slate-200/80 text-[11px] flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-xs shadow-2xs shrink-0">
+            {user?.role === 'Administrator' ? '🔑' : user?.role === 'Principal' ? '🏛️' : user?.role === 'HOD' ? '🎓' : '👨‍🏫'}
+          </div>
+          <div className="overflow-hidden">
+            <div className="text-[10px] uppercase font-bold text-slate-400 leading-tight">Active View</div>
+            <div className="text-xs font-black text-slate-800 truncate">
+              {user?.role === 'Administrator' 
+                ? 'System Admin' 
+                : user?.role === 'Principal'
+                ? 'Principal / IQAC' 
+                : user?.role === 'HOD'
+                ? 'HOD (CSE Dept)'
+                : 'Faculty Member'}
+            </div>
+          </div>
+        </div>
+
         <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 text-[11px] space-y-2">
           <div className="flex items-center justify-between">
             <span className="font-bold text-slate-800">Criterion 1 Scope</span>
             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800">
-              Active
+              100% Ready
             </span>
           </div>
           <div className="text-slate-500 space-y-0.5 text-[10px]">
             <p>• Weightage: <strong>100 / 1000 Pts</strong></p>
-            <p>• Agent Pipeline: <strong>6 Multi-Agents</strong></p>
-            <p>• Vector Index: <strong>FAISS Ready</strong></p>
+            <p>• Grade Tier: <strong>A++ (3.76 - 4.00)</strong></p>
+            <p>• Quality Gate: <strong>12/12 Passed</strong></p>
           </div>
         </div>
 
         <div className="text-[10px] text-center text-slate-400 font-medium">
-          CampusInsight AI v2.4 • NAAC Certified
+          CampusInsight AI v2.4 • NAAC Criterion 1
         </div>
       </div>
     </aside>

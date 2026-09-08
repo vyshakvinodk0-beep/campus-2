@@ -397,13 +397,13 @@ const EvidenceMatrixPage = () => {
                 </div>
 
                 {/* Human-in-the-Loop Override Controls */}
-                {['HOD', 'Principal', 'Administrator'].includes(user?.role) && (
+                {['HOD', 'Principal', 'Administrator'].includes(user?.role) ? (
                   <form onSubmit={handleOverrideSubmit} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
                     <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
                       <UserCheck className="w-4 h-4 text-purple-600" /> Human Validation & AI Status Override
                     </h4>
                     <p className="text-[11px] text-slate-500">
-                      Override AI evaluation for Metric {activeMetric.metric_id}. A mandatory override reason will be recorded in the institutional audit trail.
+                      Override AI evaluation for Metric {activeMetric.metric_id}. A mandatory override reason will be recorded in the institutional audit trail as <strong>{user?.role}</strong> ({user?.full_name}).
                     </p>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -436,11 +436,21 @@ const EvidenceMatrixPage = () => {
                     <button
                       type="submit"
                       disabled={submittingOverride}
-                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all"
+                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
                     >
                       {submittingOverride ? 'Saving Override...' : 'Submit Human Override'}
                     </button>
                   </form>
+                ) : (
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-1.5">
+                    <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                      <UserCheck className="w-4 h-4 text-blue-600" />
+                      <span>Human Validation & Audit Protocol</span>
+                    </div>
+                    <p className="text-slate-600 text-[11px] leading-relaxed">
+                      As a <strong>Faculty Member</strong>, you can inspect verified citations, completeness scores, and document sources. Statutory overrides and formal sign-offs are reserved for Department HOD, Institutional Principal, or Administrator.
+                    </p>
+                  </div>
                 )}
               </div>
             )}

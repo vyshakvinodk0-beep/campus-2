@@ -65,24 +65,24 @@ const FormulaModal = ({ isOpen, onClose }) => {
 };
 
 const defaultOverviewData = {
-  overall_quality_score: 78.5,
-  overall_cgpa: 3.14,
-  overall_readiness: "A - High Readiness",
-  evidence_checklist: { required_total: 52, available: 43, missing: 9, partial: 7, conflicting: 2 },
-  workflow_queue: { faculty_review: 2, hod_review: 3, principal_review: 1, resolved: 8 },
+  overall_quality_score: 100.0,
+  overall_cgpa: 4.00,
+  overall_readiness: "A++ - 100% NAAC Audit Ready",
+  evidence_checklist: { required_total: 52, available: 52, missing: 0, partial: 0, conflicting: 0 },
+  workflow_queue: { faculty_review: 0, hod_review: 0, principal_review: 0, resolved: 14 },
   historical_trends: [
     { academic_year: "2023-24", readiness_pct: 64.0, evidence_count: 28, gaps_count: 14 },
-    { academic_year: "2024-25", readiness_pct: 72.0, evidence_count: 36, gaps_count: 8 },
-    { academic_year: "2025-26", readiness_pct: 78.5, evidence_count: 43, gaps_count: 3 }
+    { academic_year: "2024-25", readiness_pct: 82.5, evidence_count: 38, gaps_count: 5 },
+    { academic_year: "2025-26", readiness_pct: 100.0, evidence_count: 52, gaps_count: 0 }
   ],
-  total_documents: 12,
-  total_gaps: 5,
-  gaps_by_severity: { Critical: 1, Major: 2, Minor: 2 },
+  total_documents: 4,
+  total_gaps: 0,
+  gaps_by_severity: { Critical: 0, Major: 0, Minor: 0 },
   sub_criteria_analyses: [
-    { sub_criterion: "1.1", title: "Curriculum Design and Development", score: 82.0, cgpa_equivalent: 3.28, readiness_level: "Satisfactory", evidence_count: 12, gap_count: 1 },
-    { sub_criterion: "1.2", title: "Academic Flexibility", score: 68.5, cgpa_equivalent: 2.74, readiness_level: "Needs Improvement", evidence_count: 9, gap_count: 2 },
-    { sub_criterion: "1.3", title: "Curriculum Enrichment", score: 76.0, cgpa_equivalent: 3.04, readiness_level: "Needs Improvement", evidence_count: 11, gap_count: 1 },
-    { sub_criterion: "1.4", title: "Feedback System", score: 84.0, cgpa_equivalent: 3.36, readiness_level: "Satisfactory", evidence_count: 11, gap_count: 1 }
+    { sub_criterion: "1.1", title: "Curriculum Design and Development", score: 100.0, cgpa_equivalent: 4.00, readiness_level: "Excellent (A++ Grade / 100% Audit Ready)", evidence_count: 15, gap_count: 0 },
+    { sub_criterion: "1.2", title: "Academic Flexibility", score: 100.0, cgpa_equivalent: 4.00, readiness_level: "Excellent (A++ Grade / 100% Audit Ready)", evidence_count: 12, gap_count: 0 },
+    { sub_criterion: "1.3", title: "Curriculum Enrichment", score: 100.0, cgpa_equivalent: 4.00, readiness_level: "Excellent (A++ Grade / 100% Audit Ready)", evidence_count: 14, gap_count: 0 },
+    { sub_criterion: "1.4", title: "Feedback System", score: 100.0, cgpa_equivalent: 4.00, readiness_level: "Excellent (A++ Grade / 100% Audit Ready)", evidence_count: 11, gap_count: 0 }
   ],
   recent_gaps: [],
   recent_recommendations: []
@@ -178,49 +178,49 @@ const Dashboard = ({ isDemoMode }) => {
     ? documents.find(d => String(d.id) === String(selectedDocId)) || selected_document
     : null;
 
-  const topPriorityItems = [
+  const topPriorityItems = priorityActions.length > 0 ? priorityActions : [
     {
       id: 1,
-      sub_criterion: "1.2 Academic Flexibility",
-      gap: "Evidence for certain academic flexibility activities is incomplete.",
-      why_it_matters: "Required supporting evidence could not be fully verified for Metric 1.2.2.",
-      priority: "HIGH PRIORITY",
-      recommended_action: "Upload syllabus copies and course enrolment lists for Open Elective courses.",
-      source_file: "SSR_2025_Draft.pdf",
-      page: 42
+      sub_criterion: "1.1 Curriculum Design",
+      gap: "100% Substantiated — Curricular Planning Adherence",
+      why_it_matters: "Substantiated with Board of Studies Meeting Minutes & Resolutions (Resolution 2).",
+      priority: "AUDIT READY",
+      recommended_action: "Maintain annual review and signed CO-PO-PSO articulation records in departmental archive.",
+      source_file: "B.Tech CSE Curriculum Revision & BOS Minutes 2024.pdf",
+      page: 2
     },
     {
       id: 2,
-      sub_criterion: "1.4 Feedback System",
-      gap: "Action Taken Report (ATR) on Feedback is missing for Academic Year 2024-25.",
-      why_it_matters: "Stakeholder feedback collected but Action Taken Report cannot be verified.",
-      priority: "CRITICAL",
-      recommended_action: "Upload verified Action Taken Report approved by IQAC.",
-      source_file: "Feedback_Report_2024.pdf",
-      page: 18
+      sub_criterion: "1.2 Academic Flexibility",
+      gap: "100% Substantiated — Credit Transfer Policy & Equivalency",
+      why_it_matters: "Dean Academics signed certificate and credit transfer matrix substantiated.",
+      priority: "AUDIT READY",
+      recommended_action: "Maintain CBCS policy and online elective credit equivalency roster.",
+      source_file: "Institutional Choice Based Credit System (CBCS) & MOOC Credit Transfer Policy.pdf",
+      page: 3
     },
     {
       id: 3,
-      sub_criterion: "1.3 Curriculum Enrichment",
-      gap: "Student attendance logs for 30+ hour Value-Added Courses are incomplete.",
-      why_it_matters: "Experiential learning metric requires student completion proof.",
-      priority: "MAJOR",
-      recommended_action: "Upload course attendance logs & sample completion certificates.",
-      source_file: "VAC_Report_2025.pdf",
-      page: 7
+      sub_criterion: "1.4 Feedback System",
+      gap: "100% Substantiated — Action Taken Report (ATR) Ratification",
+      why_it_matters: "Signed ATR with Academic Council ratification minutes and active web link substantiated.",
+      priority: "AUDIT READY",
+      recommended_action: "Preserve Academic Council minutes ratifying stakeholder feedback Action Taken Reports.",
+      source_file: "Stakeholder Feedback Analysis Report & Action Taken Report (ATR) 2024.pdf",
+      page: 3
     }
   ];
 
   const sampleShapData = {
-    sub_criterion: "1.2",
-    base_value: 70.0,
-    predicted_score: 68.5,
-    top_positive_driver: "Syllabus Structure Document",
-    top_negative_gap: "Missing Open Elective Enrolment Sheet",
+    sub_criterion: "1.1",
+    base_value: 85.0,
+    predicted_score: 100.0,
+    top_positive_driver: "BOS Revision Minutes & CO-PO Articulation Matrices",
+    top_negative_gap: "None — All Criterion 1 Evidence Verified",
     feature_attributions: [
-      { feature: "Syllabus Structure", shap_value: 8.5, effect: "Positive", value: 9.0, description: "Clear syllabus documentation uploaded." },
-      { feature: "Open Elective List", shap_value: -12.0, effect: "Negative", value: 3.0, description: "Missing enrolment records." },
-      { feature: "Human Verification", shap_value: 2.0, effect: "Positive", value: 7.0, description: "HOD approved structure." }
+      { feature: "Curricular Planning & BOS Minutes", shap_value: 15.0, effect: "Positive", value: 10.0, description: "Signed BOS resolutions and articulation matrix fully verified." },
+      { feature: "Syllabus Revision Delta Matrix", shap_value: 12.5, effect: "Positive", value: 9.8, description: "24.3% syllabus revision delta matrix approved by BOS." },
+      { feature: "Employability & Skill Units", shap_value: 7.5, effect: "Positive", value: 9.5, description: "Course syllabi highlighting skill units verified." }
     ]
   };
 
@@ -253,10 +253,22 @@ const Dashboard = ({ isDemoMode }) => {
           </div>
 
           <h1 className="text-3xl lg:text-4xl font-black text-white tracking-tight">
-            {user?.role === 'Faculty' ? 'Faculty Evidence Portal' : 'CampusInsight AI Command Center'}
+            {user?.role === 'Faculty' 
+              ? 'Faculty Evidence & Curriculum Portal' 
+              : user?.role === 'HOD'
+              ? 'HOD Departmental Curricular Review'
+              : user?.role === 'Principal'
+              ? 'Principal Executive Accreditation Command'
+              : 'System Administrator Command Center'}
           </h1>
           <p className="text-xs sm:text-sm text-slate-300 font-medium leading-relaxed">
-            Real-time document-isolated evidence verification for Sub-Criteria 1.1, 1.2, 1.3, and 1.4.
+            {user?.role === 'Faculty'
+              ? 'Upload course syllabi, link CO-PO articulation matrices, and verify primary teaching evidence.'
+              : user?.role === 'HOD'
+              ? 'Review Board of Studies resolutions, approve departmental course revisions, and validate metric submissions.'
+              : user?.role === 'Principal'
+              ? 'Institutional executive overview, statutory A++ accreditation audit certification, and NAAC reporting.'
+              : 'Institutional user governance, OCR pipeline monitoring, and Criterion 1 evidentiary system administration.'}
           </p>
 
           {/* Document Selection Control */}

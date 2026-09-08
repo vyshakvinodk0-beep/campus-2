@@ -83,6 +83,30 @@ const UserManagementPage = () => {
     }
   };
 
+  if (currentUser?.role !== 'Administrator') {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] p-4 text-center space-y-4 font-sans">
+        <div className="w-16 h-16 rounded-3xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-700 shadow-sm">
+          <Shield className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-black text-slate-900">Administrator Access Required</h2>
+        <p className="text-xs text-slate-600 max-w-md">
+          User Governance & Role-Based Access Control (RBAC) is restricted to Institutional System Administrators. 
+          You are currently signed in as <b>{currentUser?.full_name}</b> (<span className="text-blue-700 font-bold">{currentUser?.role}</span>).
+        </p>
+        <p className="text-[11px] text-slate-500">
+          Tip: You can switch to the <b>Administrator</b> persona using the top navigation profile menu.
+        </p>
+        <button
+          onClick={() => window.location.href = '/'}
+          className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md transition-colors cursor-pointer"
+        >
+          Return to Overview Dashboard
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8 pb-12 font-sans">
       

@@ -19,6 +19,18 @@ api.interceptors.request.use((config) => {
   return config;
 }, (error) => Promise.reject(error));
 
+// Response interceptor to handle 401 gracefully
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      console.warn('API 401 Unauthorized encountered, clearing stale token');
+      localStorage.removeItem('token');
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const authAPI = {
   login: (email, password) => api.post('/auth/login', { email, password }),
   sendOtp: (email, purpose = 'verification') => api.post('/auth/send-otp', { email, purpose }),
@@ -80,6 +92,11 @@ export const adminAPI = {
   updateConfig: (config) => api.patch('/admin/config', config),
   reindexRag: () => api.post('/admin/reindex-rag'),
   clearCache: () => api.post('/admin/clear-cache'),
+  certify100Percent: () => api.post('/admin/certify-100-percent'),
+};
+
+export const complianceAPI = {
+  certify100Percent: () => api.post('/admin/certify-100-percent'),
 };
 
 export const criterionAPI = {

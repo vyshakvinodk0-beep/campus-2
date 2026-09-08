@@ -8,13 +8,26 @@ import {
 } from 'lucide-react';
 
 const Navbar = ({ onOpenSearch, isDemoMode, onToggleDemoMode }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, switchRole } = useAuth();
   const navigate = useNavigate();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [switchingRole, setSwitchingRole] = useState(false);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const handleRoleSwitch = async (targetRole) => {
+    try {
+      setSwitchingRole(true);
+      await switchRole(targetRole);
+    } catch (err) {
+      console.error('Role switch error:', err);
+    } finally {
+      setSwitchingRole(false);
+      setShowUserMenu(false);
+    }
   };
 
   const getRoleBadgeColor = (role) => {
@@ -79,7 +92,37 @@ const Navbar = ({ onOpenSearch, isDemoMode, onToggleDemoMode }) => {
         </div>
 
         {/* Right: Quality Gate Pill, Notifications & User Info */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          {/* Quick Role Persona Switcher Pill (Desktop) */}
+          <div className="hidden xl:flex items-center gap-1 bg-slate-100/90 p-1 rounded-2xl border border-slate-200/90 text-xs">
+            <span className="text-[10px] font-black uppercase text-slate-400 px-1.5 tracking-wider">Role</span>
+            {[
+              { id: 'Administrator', label: 'Admin', icon: '🔑', activeBg: 'bg-purple-600 text-white' },
+              { id: 'Principal', label: 'Principal', icon: '🏛️', activeBg: 'bg-amber-600 text-white' },
+              { id: 'HOD', label: 'HOD', icon: '🎓', activeBg: 'bg-blue-600 text-white' },
+              { id: 'Faculty', label: 'Faculty', icon: '👨‍🏫', activeBg: 'bg-emerald-600 text-white' }
+            ].map((roleItem) => {
+              const isActive = user?.role === roleItem.id;
+              return (
+                <button
+                  key={roleItem.id}
+                  type="button"
+                  disabled={switchingRole}
+                  onClick={() => handleRoleSwitch(roleItem.id)}
+                  className={`px-2 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50 ${
+                    isActive
+                      ? `${roleItem.activeBg} shadow-xs`
+                      : 'text-slate-600 hover:bg-white hover:text-slate-900'
+                  }`}
+                  title={`Switch active persona to ${roleItem.id}`}
+                >
+                  <span className="text-[10px]">{roleItem.icon}</span>
+                  <span>{roleItem.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
           {/* Search Trigger for Mobile */}
           <button
             onClick={onOpenSearch}
@@ -123,11 +166,82 @@ const Navbar = ({ onOpenSearch, isDemoMode, onToggleDemoMode }) => {
             </button>
 
             {showUserMenu && (
-              <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl border border-slate-200 shadow-xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+              <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl border border-slate-200 shadow-xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
                 <div className="px-3 py-2 border-b border-slate-100">
                   <p className="text-xs font-bold text-slate-900 truncate">{user?.full_name}</p>
                   <p className="text-[11px] text-slate-500 truncate">{user?.email}</p>
-                  <p className="text-[10px] text-slate-400 font-medium mt-0.5">{user?.department}</p>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-[10px] text-slate-400 font-medium">{user?.department}</span>
+                    <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold border ${getRoleBadgeColor(user?.role)}`}>
+                      {user?.role}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Quick Persona Switcher inside Dropdown */}
+                <div className="p-2 my-1 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="flex items-center justify-between mb-1.5 px-0.5">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      Switch Role Persona
+                    </span>
+                    <span className="text-[9px] font-bold text-blue-700 bg-blue-50 px-1 rounded border border-blue-200">
+                      Demo
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1 text-[11px] font-bold">
+                    <button
+                      type="button"
+                      disabled={switchingRole}
+                      onClick={() => handleRoleSwitch('Administrator')}
+                      className={`p-1.5 rounded-lg text-left transition-all cursor-pointer flex items-center gap-1.5 ${
+                        user?.role === 'Administrator'
+                          ? 'bg-purple-100 text-purple-900 font-black border border-purple-300'
+                          : 'text-slate-700 hover:bg-white'
+                      }`}
+                    >
+                      <span className="text-xs">🔑</span>
+                      <span className="truncate">Admin</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={switchingRole}
+                      onClick={() => handleRoleSwitch('Principal')}
+                      className={`p-1.5 rounded-lg text-left transition-all cursor-pointer flex items-center gap-1.5 ${
+                        user?.role === 'Principal'
+                          ? 'bg-amber-100 text-amber-900 font-black border border-amber-300'
+                          : 'text-slate-700 hover:bg-white'
+                      }`}
+                    >
+                      <span className="text-xs">🏛️</span>
+                      <span className="truncate">Principal</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={switchingRole}
+                      onClick={() => handleRoleSwitch('HOD')}
+                      className={`p-1.5 rounded-lg text-left transition-all cursor-pointer flex items-center gap-1.5 ${
+                        user?.role === 'HOD'
+                          ? 'bg-blue-100 text-blue-900 font-black border border-blue-300'
+                          : 'text-slate-700 hover:bg-white'
+                      }`}
+                    >
+                      <span className="text-xs">🎓</span>
+                      <span className="truncate">HOD</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={switchingRole}
+                      onClick={() => handleRoleSwitch('Faculty')}
+                      className={`p-1.5 rounded-lg text-left transition-all cursor-pointer flex items-center gap-1.5 ${
+                        user?.role === 'Faculty'
+                          ? 'bg-emerald-100 text-emerald-900 font-black border border-emerald-300'
+                          : 'text-slate-700 hover:bg-white'
+                      }`}
+                    >
+                      <span className="text-xs">👨‍🏫</span>
+                      <span className="truncate">Faculty</span>
+                    </button>
+                  </div>
                 </div>
                 
                 <div className="py-1">
