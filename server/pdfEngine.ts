@@ -31,12 +31,15 @@ export interface PageRelevanceInfo {
   extractedSnippet: string;
 }
 
+export type AuthenticityClassification = 'DEMONSTRATION_ONLY' | 'SYNTHETIC_SAMPLE' | 'GENUINE_INSTITUTIONAL';
+
 export interface ExtractedPage {
   pageNumber: number;
   text: string;
   criterion?: string;
   subCriterion?: string;
   isDemoOrSynthetic: boolean;
+  authenticitySignals?: string[];
   hasTables: boolean;
   rank: PageRelevanceRank;
   topic: string;
@@ -51,6 +54,8 @@ export interface DocumentAnalysisResult {
   textPagesCount: number;
   ocrPagesCount: number;
   isDemoOrSynthetic: boolean;
+  authenticityClassification: AuthenticityClassification;
+  authenticitySignals: string[];
   institutionName: string;
   
   // Document Intake Agent Decisions
@@ -81,18 +86,34 @@ export interface DocumentAnalysisResult {
   readabilityScore: number;
 }
 
+export const DEMO_SIGNALS_PATTERNS = [
+  { pattern: /\bdemo\s*data\b/i, label: 'DEMO DATA' },
+  { pattern: /\bdemonstration\b/i, label: 'DEMONSTRATION' },
+  { pattern: /\bsynthetic\b/i, label: 'SYNTHETIC' },
+  { pattern: /\bsample\b/i, label: 'SAMPLE' },
+  { pattern: /\bdummy\b/i, label: 'DUMMY' },
+  { pattern: /\bnot\s+real\s+institutional\s+evidence\b/i, label: 'NOT REAL INSTITUTIONAL EVIDENCE' },
+  { pattern: /\btest\s*data\b/i, label: 'TEST DATA' },
+  { pattern: /\bgenerated\s+for\s+testing\b/i, label: 'GENERATED FOR TESTING' },
+  { pattern: /\bhuman\s+verification\s+pending\b/i, label: 'HUMAN VERIFICATION PENDING' },
+  { pattern: /\bfor\s+testing\s+purposes\b/i, label: 'FOR TESTING PURPOSES' },
+  { pattern: /\b(illustrative|example|sample)\s+(record|data|ssr|evidence|document)\b/i, label: 'ILLUSTRATIVE/SAMPLE WORDING' },
+  { pattern: /\bdemo\s*ssr\b/i, label: 'DEMO SSR' },
+  { pattern: /\bdummy\s*ssr\b/i, label: 'DUMMY SSR' }
+];
+
 function classifyPageContent(pageNum: number, rawText: string): ExtractedPage {
   const text = (rawText || '').trim();
   const lowerText = text.toLowerCase();
   
   // Detect synthetic / dummy / demo tags
-  const isDemoOrSynthetic = 
-    lowerText.includes('dummy') || 
-    lowerText.includes('synthetic') || 
-    lowerText.includes('demonstration') || 
-    lowerText.includes('demo ssr') || 
-    lowerText.includes('test ssr') ||
-    lowerText.includes('for testing');
+  const matchedSignals: string[] = [];
+  for (const sig of DEMO_SIGNALS_PATTERNS) {
+    if (sig.pattern.test(text)) {
+      matchedSignals.push(sig.label);
+    }
+  }
+  const isDemoOrSynthetic = matchedSignals.length > 0;
   
   // Detect Criterion boundaries
   let criterion: string | undefined = undefined;
@@ -176,6 +197,7 @@ function classifyPageContent(pageNum: number, rawText: string): ExtractedPage {
     criterion,
     subCriterion,
     isDemoOrSynthetic,
+    authenticitySignals: matchedSignals,
     hasTables: text.includes('|') || text.includes('---') || text.includes('\t'),
     rank,
     topic,
@@ -263,25 +285,44 @@ export async function parsePdfDocument(filePath: string, originalName: string): 
     pages.push(classifyPageContent(1, ''));
   }
 
-  let isDemoOrSynthetic = false;
-  let institutionName = 'Vimal Jyothi Engineering College, Chemperi';
+  const docSignalsSet = new Set<string>();
 
-  // Check overall document text
-  const lowerFullText = fullText.toLowerCase();
-  const lowerName = originalName.toLowerCase();
-
-  if (
-    lowerFullText.includes('dummy') ||
-    lowerFullText.includes('synthetic') ||
-    lowerFullText.includes('demonstration') ||
-    lowerFullText.includes('demo ssr') ||
-    lowerFullText.includes('test ssr') ||
-    lowerName.includes('dummy') ||
-    lowerName.includes('synthetic') ||
-    lowerName.includes('demo')
-  ) {
-    isDemoOrSynthetic = true;
+  // Check signals in filename and full text
+  for (const sig of DEMO_SIGNALS_PATTERNS) {
+    if (sig.pattern.test(originalName) || sig.pattern.test(fullText)) {
+      docSignalsSet.add(sig.label);
+    }
   }
+
+  // Also collect any page-level signals
+  pages.forEach(p => {
+    if (p.authenticitySignals) {
+      p.authenticitySignals.forEach(s => docSignalsSet.add(s));
+    }
+  });
+
+  const authenticitySignals = Array.from(docSignalsSet);
+  const isDemoOrSynthetic = authenticitySignals.length > 0;
+  let authenticityClassification: AuthenticityClassification = 'GENUINE_INSTITUTIONAL';
+  if (isDemoOrSynthetic) {
+    if (
+      authenticitySignals.includes('DEMONSTRATION') ||
+      authenticitySignals.includes('DEMO DATA') ||
+      authenticitySignals.includes('DUMMY SSR') ||
+      authenticitySignals.includes('DUMMY') ||
+      authenticitySignals.includes('NOT REAL INSTITUTIONAL EVIDENCE') ||
+      originalName.toLowerCase().includes('demo') ||
+      originalName.toLowerCase().includes('dummy')
+    ) {
+      authenticityClassification = 'DEMONSTRATION_ONLY';
+    } else if (authenticitySignals.includes('SYNTHETIC') || authenticitySignals.includes('TEST DATA')) {
+      authenticityClassification = 'SYNTHETIC_SAMPLE';
+    } else {
+      authenticityClassification = 'DEMONSTRATION_ONLY';
+    }
+  }
+
+  let institutionName = 'Vimal Jyothi Engineering College, Chemperi';
 
   // Extract institution name if present
   const instMatch = fullText.match(/institution\s*:\s*([^\n\r]+)/i) || 
@@ -355,6 +396,9 @@ export async function parsePdfDocument(filePath: string, originalName: string): 
   // =========================================================================
   // DOCUMENT INTAKE AGENT (AGENT 1) — CLASSIFICATION & RELEVANCE
   // =========================================================================
+
+  const lowerName = originalName.toLowerCase();
+  const lowerFullText = fullText.toLowerCase();
 
   // Check for clearly unsupported documents (novels, movie scripts, resumes, invoices, textbooks, etc.)
   const isUnsupportedKeywords = 
@@ -456,6 +500,8 @@ export async function parsePdfDocument(filePath: string, originalName: string): 
     textPagesCount,
     ocrPagesCount,
     isDemoOrSynthetic,
+    authenticityClassification,
+    authenticitySignals,
     institutionName,
     documentType,
     relevance,

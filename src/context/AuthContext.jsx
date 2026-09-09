@@ -110,33 +110,110 @@ export const AuthProvider = ({ children }) => {
     return res.data;
   };
 
+  const [isSimulating, setIsSimulating] = useState(() => {
+    return !!localStorage.getItem('sim_original_token');
+  });
+  const [sandboxEnabled, setSandboxEnabled] = useState(() => {
+    return localStorage.getItem('eval_sandbox_enabled') === 'true';
+  });
+
+  const toggleSandbox = (enabled) => {
+    const nextVal = typeof enabled === 'boolean' ? enabled : !sandboxEnabled;
+    setSandboxEnabled(nextVal);
+    localStorage.setItem('eval_sandbox_enabled', String(nextVal));
+  };
+
   const switchRole = async (targetRole) => {
     const roleEmailMap = {
       'Administrator': 'admin@campusinsight.edu',
       'Admin': 'admin@campusinsight.edu',
       'Principal': 'principal@campusinsight.edu',
       'HOD': 'hod.cse@campusinsight.edu',
-      'Faculty': 'faculty@campusinsight.edu'
+      'Faculty': 'vyshakvinodk0@gmail.com'
     };
-    const email = roleEmailMap[targetRole] || 'faculty@campusinsight.edu';
+    const email = roleEmailMap[targetRole] || 'vyshakvinodk0@gmail.com';
+
+    // If starting a simulation, save original token and identity
+    const currentToken = localStorage.getItem('token');
+    if (!isSimulating && currentToken) {
+      localStorage.setItem('sim_original_token', currentToken);
+      if (user) {
+        localStorage.setItem('sim_original_user', JSON.stringify(user));
+      }
+      setIsSimulating(true);
+    }
+
     return await login(email, 'password123');
+  };
+
+  const exitSimulation = async () => {
+    const originalToken = localStorage.getItem('sim_original_token');
+    const originalUserStr = localStorage.getItem('sim_original_user');
+    
+    localStorage.removeItem('sim_original_token');
+    localStorage.removeItem('sim_original_user');
+    setIsSimulating(false);
+
+    if (originalToken && originalUserStr) {
+      try {
+        localStorage.setItem('token', originalToken);
+        const parsed = JSON.parse(originalUserStr);
+        setUser(parsed);
+        const res = await authAPI.getMe();
+        if (res.data) setUser(res.data);
+        return;
+      } catch (err) {
+        console.warn('Failed restoring original session from token:', err);
+      }
+    }
+
+    // Default fallback: login as original primary admin
+    try {
+      const res = await authAPI.login('vyshakvinodk0@gmail.com', 'password123');
+      localStorage.setItem('token', res.data.access_token);
+      setUser(res.data.user);
+    } catch (e) {
+      // Re-fetch me
+      try {
+        const meRes = await authAPI.getMe();
+        setUser(meRes.data);
+      } catch {
+        setUser(null);
+      }
+    }
   };
 
   const logout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('sim_original_token');
+    localStorage.removeItem('sim_original_user');
+    setIsSimulating(false);
     localStorage.clear();
     sessionStorage.clear();
     sessionStorage.setItem('logged_out', 'true');
     setUser(null);
   };
 
-
   return (
-    <AuthContext.Provider value={{ user, loading, login, googleOAuth, googleRegister, googleLogin, register, verifyAndLoginOtp, logout, switchRole }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      loading, 
+      login, 
+      googleOAuth, 
+      googleRegister, 
+      googleLogin, 
+      register, 
+      verifyAndLoginOtp, 
+      logout, 
+      switchRole,
+      isSimulating,
+      exitSimulation,
+      sandboxEnabled,
+      toggleSandbox
+    }}>
       {children}
     </AuthContext.Provider>
   );
-
 };
 
 export const useAuth = () => useContext(AuthContext);

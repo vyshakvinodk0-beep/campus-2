@@ -49,7 +49,7 @@ export interface GapItem {
   metric_id?: string;
   title: string;
   description: string;
-  severity: 'Critical' | 'High' | 'Medium' | 'Low';
+  severity: 'Critical' | 'High' | 'Medium' | 'Low' | 'DEMONSTRATION-ONLY EVIDENCE GAP';
   status: 'Open' | 'Pending' | 'In Progress' | 'Resolved';
   missing_evidence?: string;
   recommended_action?: string;
@@ -75,7 +75,7 @@ export interface RecommendationItem {
   category: string;
   title: string;
   recommendation_text: string;
-  priority: 'Critical' | 'High' | 'Medium' | 'Low';
+  priority: 'Critical' | 'High' | 'Medium' | 'Low' | 'DEMONSTRATION_ONLY';
   evidence_status: string;
   claim_status: string;
   supporting_doc_status: string;
@@ -98,6 +98,12 @@ export interface RecommendationItem {
   how_to_verify?: string;
   supported_metric?: string;
   verification_requirement?: string;
+  // 9 Canonical Recommendation Fields
+  observed_finding?: string;
+  evidence_gap?: string;
+  recommended_action?: string;
+  target_evidence?: string;
+  verification_step?: string;
 }
 
 export interface DocumentRecord {
@@ -147,6 +153,8 @@ export interface DocumentRecord {
   ignored_pages?: { page: number; reason: string }[];
   page_rankings?: any[];
   final_recommendation_status?: 'READY' | 'MOSTLY READY' | 'PARTIALLY READY' | 'NOT READY' | 'INSUFFICIENT EVIDENCE';
+  authenticity_classification?: 'DEMONSTRATION_ONLY' | 'SYNTHETIC_SAMPLE' | 'GENUINE_INSTITUTIONAL';
+  authenticity_signals?: string[];
 }
 
 export interface EvidenceItem {
@@ -380,9 +388,9 @@ class DatabaseStore {
         id: this.userSeq++,
         email: 'vyshakvinodk0@gmail.com',
         hashed_password: passwordHash,
-        full_name: 'Vyshak Vinod (System Admin)',
-        role: 'Administrator',
-        department: 'Institutional Governance & IQAC',
+        full_name: 'Prof. Vyshak Vinod (Faculty)',
+        role: 'Faculty',
+        department: 'Computer Science & Engineering',
         is_active: true,
         has_logged_in: true,
         login_count: 1,

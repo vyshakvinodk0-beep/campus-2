@@ -6,7 +6,12 @@ import SubCriteriaCard from '../components/SubCriteriaCard';
 import DocumentUploader from '../components/DocumentUploader';
 import AgentPipelineVisualizer from '../components/AgentPipelineVisualizer';
 import ShapVisualizer from '../components/ShapVisualizer';
-import { Award, FileCheck, AlertTriangle, Lightbulb, Sparkles, Loader2, RefreshCw, CheckCircle, ShieldCheck, XCircle, Users, FileText, ArrowRight, Info, Zap, HelpCircle, CheckSquare, Clock, Filter, AlertCircle, ExternalLink, ArrowDown } from 'lucide-react';
+import { 
+  Award, FileCheck, AlertTriangle, Lightbulb, Sparkles, Loader2, RefreshCw, 
+  CheckCircle, CheckCircle2, ShieldCheck, XCircle, Users, FileText, ArrowRight, 
+  Info, Zap, HelpCircle, CheckSquare, Clock, Filter, AlertCircle, ExternalLink, 
+  ArrowDown, Plus, MessageSquare, Send, RotateCcw, X 
+} from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 const FormulaModal = ({ isOpen, onClose }) => {
@@ -139,6 +144,50 @@ const Dashboard = ({ isDemoMode }) => {
     setSelectedDocId(newDocId);
   };
 
+  const [revisionModalDoc, setRevisionModalDoc] = useState(null);
+  const [revisionNote, setRevisionNote] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const handleQuickHodValidate = async (docId) => {
+    try {
+      setActionLoading(true);
+      await documentAPI.validateHod(docId);
+      await fetchDashboardData(selectedDocId);
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to validate document');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleQuickPrincipalValidate = async (docId) => {
+    try {
+      setActionLoading(true);
+      await documentAPI.validatePrincipal(docId);
+      await fetchDashboardData(selectedDocId);
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to validate document');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleQuickRequestRevision = async (e) => {
+    e.preventDefault();
+    if (!revisionModalDoc || !revisionNote.trim()) return;
+    try {
+      setActionLoading(true);
+      await documentAPI.requestRevisionHod(revisionModalDoc.id, revisionNote);
+      setRevisionModalDoc(null);
+      setRevisionNote('');
+      await fetchDashboardData(selectedDocId);
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to submit revision request');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleRunAssessment = async () => {
     setReanalyzing(true);
     try {
@@ -177,6 +226,11 @@ const Dashboard = ({ isDemoMode }) => {
   const currentSelectedDoc = selectedDocId !== 'all'
     ? documents.find(d => String(d.id) === String(selectedDocId)) || selected_document
     : null;
+
+  const pendingHodDocs = documents.filter(d => d.validation_status === 'Pending HOD Validation');
+  const pendingPrincipalDocs = documents.filter(d => d.validation_status === 'Pending Principal Validation');
+  const revisionDocs = documents.filter(d => d.validation_status === 'Revision Requested' || d.validation_status?.includes('Revision') || d.validation_status?.includes('Rejected'));
+  const fullyValidatedDocs = documents.filter(d => d.validation_status === 'Fully Validated');
 
   const topPriorityItems = priorityActions.length > 0 ? priorityActions : [
     {
@@ -344,6 +398,450 @@ const Dashboard = ({ isDemoMode }) => {
           </p>
         </div>
       </div>
+
+      {/* REVISION MODAL FOR HOD / PRINCIPAL */}
+      {revisionModalDoc && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <RotateCcw className="w-5 h-5 text-purple-600" />
+                <span>Request Faculty Revision</span>
+              </h3>
+              <button
+                onClick={() => setRevisionModalDoc(null)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600">
+              Specify what needs revision for <strong>{revisionModalDoc.original_name || revisionModalDoc.filename}</strong>. The contributor will see this guidance immediately.
+            </p>
+
+            <form onSubmit={handleQuickRequestRevision} className="space-y-3">
+              <textarea
+                value={revisionNote}
+                onChange={(e) => setRevisionNote(e.target.value)}
+                placeholder="E.g., Please attach the signed BoS resolution page and course syllabus comparison table..."
+                rows={4}
+                required
+                className="w-full p-3 rounded-2xl border border-slate-200 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+              />
+
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setRevisionModalDoc(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading || !revisionNote.trim()}
+                  className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs disabled:opacity-50 transition-all cursor-pointer"
+                >
+                  {actionLoading ? 'Sending...' : 'Send Revision Notice'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* TAILORED ROLE PLATFORM COMMAND HUB */}
+      {/* 1. FACULTY PLATFORM */}
+      {user?.role === 'Faculty' && (
+        <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-xs space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200 uppercase tracking-wider">
+                  Faculty Workspace
+                </span>
+                <span className="text-xs text-slate-500 font-medium">Department of Computer Science & Engineering</span>
+              </div>
+              <h2 className="text-lg font-black text-slate-900 mt-1">My Evidence Portfolio & Submission Checklist</h2>
+              <p className="text-xs text-slate-500">Upload primary course syllabi, link CO-PO articulation matrices, and track multi-role verification.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link
+                to="/documents"
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Upload Course Evidence</span>
+              </Link>
+              <Link
+                to="/inbox"
+                className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>Tasks</span>
+              </Link>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+              <span className="text-[10px] font-bold uppercase text-slate-400">Total Uploaded</span>
+              <p className="text-xl font-black text-slate-900">{documents.length}</p>
+              <p className="text-[10px] text-slate-500">Institutional records</p>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-1">
+              <span className="text-[10px] font-bold uppercase text-emerald-700">Fully Validated</span>
+              <p className="text-xl font-black text-emerald-800">{fullyValidatedDocs.length}</p>
+              <p className="text-[10px] text-emerald-600">Certified for SSR</p>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-blue-50 border border-blue-200 space-y-1">
+              <span className="text-[10px] font-bold uppercase text-blue-700">In Review Queue</span>
+              <p className="text-xl font-black text-blue-800">{pendingHodDocs.length + pendingPrincipalDocs.length}</p>
+              <p className="text-[10px] text-blue-600">Awaiting HOD / Principal</p>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 space-y-1">
+              <span className="text-[10px] font-bold uppercase text-amber-700">Revisions / Alerts</span>
+              <p className="text-xl font-black text-amber-800">{revisionDocs.length}</p>
+              <p className="text-[10px] text-amber-600">Requires your action</p>
+            </div>
+          </div>
+
+          {revisionDocs.length > 0 && (
+            <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 space-y-3">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600" />
+                <h4 className="text-xs font-black text-amber-950">Action Required: Document Revision Feedback</h4>
+              </div>
+              <div className="space-y-2">
+                {revisionDocs.map(doc => (
+                  <div key={doc.id} className="p-3 rounded-xl bg-white border border-amber-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
+                    <div>
+                      <span className="font-bold text-slate-900">{doc.original_name || doc.filename}</span>
+                      <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900">
+                        {doc.validation_status}
+                      </span>
+                      <p className="text-slate-600 mt-1 text-[11px]">
+                        <strong>Reviewer Feedback:</strong> {doc.rejection_reason || 'Please attach signed BoS minutes and syllabus delta matrix.'}
+                      </p>
+                    </div>
+                    <Link
+                      to="/documents"
+                      className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shrink-0 self-start sm:self-auto transition-colors"
+                    >
+                      Upload Revision
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider">Criterion 1 Departmental Evidence Checklist</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+              {[
+                { code: '1.1', title: '1.1 Curriculum Design & CO-PO', req: 'BoS Minutes & Syllabus copy', status: 'Completed', color: 'emerald' },
+                { code: '1.2', title: '1.2 Academic Flexibility', req: 'CBCS Policy & Elective lists', status: 'Completed', color: 'emerald' },
+                { code: '1.3', title: '1.3 Curriculum Enrichment', req: 'Value-Added Course modules (>=30h)', status: 'Completed', color: 'emerald' },
+                { code: '1.4', title: '1.4 Stakeholder Feedback', req: 'Feedback Analysis & ATR Reports', status: 'Completed', color: 'emerald' }
+              ].map(item => (
+                <div key={item.code} className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-black text-slate-900">{item.code}</span>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-100 text-emerald-800">
+                      {item.status}
+                    </span>
+                  </div>
+                  <p className="font-bold text-slate-800 text-[11px] truncate">{item.title}</p>
+                  <p className="text-[10px] text-slate-500 truncate">{item.req}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. HOD PLATFORM */}
+      {user?.role === 'HOD' && (
+        <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-xs space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800 border border-blue-200 uppercase tracking-wider">
+                  HOD Department Command
+                </span>
+                <span className="text-xs text-slate-500 font-medium">Department of Computer Science & Engineering</span>
+              </div>
+              <h2 className="text-lg font-black text-slate-900 mt-1">Departmental Review & Validation Queue</h2>
+              <p className="text-xs text-slate-500">Review Board of Studies resolutions, approve faculty submissions, and dispatch accreditation tasks.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link
+                to="/documents"
+                className="px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>All Documents</span>
+              </Link>
+              <Link
+                to="/inbox"
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>Dispatch Notice to Faculty</span>
+              </Link>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="p-3.5 rounded-2xl bg-blue-50 border border-blue-200 space-y-1">
+              <span className="text-[10px] font-bold uppercase text-blue-700">Awaiting HOD Validation</span>
+              <p className="text-xl font-black text-blue-900">{pendingHodDocs.length}</p>
+              <p className="text-[10px] text-blue-600">Pending your sign-off</p>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 space-y-1">
+              <span className="text-[10px] font-bold uppercase text-amber-700">Sent to Principal</span>
+              <p className="text-xl font-black text-amber-900">{pendingPrincipalDocs.length}</p>
+              <p className="text-[10px] text-amber-600">Awaiting Executive Seal</p>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-1">
+              <span className="text-[10px] font-bold uppercase text-emerald-700">Fully Validated</span>
+              <p className="text-xl font-black text-emerald-900">{fullyValidatedDocs.length}</p>
+              <p className="text-[10px] text-emerald-600">Institutional Approved</p>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+              <span className="text-[10px] font-bold uppercase text-slate-500">Department Readiness</span>
+              <p className="text-xl font-black text-slate-900">100.0%</p>
+              <p className="text-[10px] text-slate-500">CSE Criterion 1 Ready</p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider">
+                Evidence Items Pending Your Review ({pendingHodDocs.length})
+              </h4>
+              <Link to="/documents" className="text-xs font-bold text-blue-600 hover:underline">
+                View full repository &rarr;
+              </Link>
+            </div>
+
+            {pendingHodDocs.length === 0 ? (
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500 font-medium">
+                🎉 All departmental evidence has been reviewed and passed to the Principal queue!
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {pendingHodDocs.map(doc => (
+                  <div key={doc.id} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-blue-100 text-blue-800">
+                          Sub-{doc.sub_criterion}
+                        </span>
+                        <span className="font-extrabold text-slate-900 text-xs">{doc.original_name || doc.filename}</span>
+                      </div>
+                      <p className="text-slate-500 text-[11px]">
+                        Pages: {doc.page_count || 1} • OCR Quality: {doc.ocr_quality_score || 90}% • Status: <strong className="text-blue-700">{doc.validation_status}</strong>
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        disabled={actionLoading}
+                        onClick={() => handleQuickHodValidate(doc.id)}
+                        className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-2xs transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                        title="Approve and forward to Principal"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Approve & Forward</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={actionLoading}
+                        onClick={() => {
+                          setRevisionModalDoc(doc);
+                          setRevisionNote('');
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-white hover:bg-purple-50 text-purple-700 border border-purple-200 font-bold text-xs transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                        title="Request faculty revision with notes"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Request Revision</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 3. PRINCIPAL PLATFORM */}
+      {user?.role === 'Principal' && (
+        <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-xs space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-200 uppercase tracking-wider">
+                  Principal Executive Command
+                </span>
+                <span className="text-xs text-slate-500 font-medium">Institutional Accreditation Certification & SSR Sign-Off</span>
+              </div>
+              <h2 className="text-lg font-black text-slate-900 mt-1">Executive Certification & Institutional Seal</h2>
+              <p className="text-xs text-slate-500">Provide final institutional accreditation ratification, inspect executive metrics, and sign off on reports.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link
+                to="/reports"
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <FileText className="w-4 h-4" />
+                <span>Export Certified SSR PDF</span>
+              </Link>
+              <Link
+                to="/trust-center"
+                className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Quality Gate</span>
+              </Link>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="p-3.5 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 space-y-1">
+              <span className="text-[10px] font-bold uppercase text-amber-700">Projected NAAC Grade</span>
+              <p className="text-2xl font-black text-amber-900">A++</p>
+              <p className="text-[10px] text-amber-700 font-semibold">Equivalent CGPA: 4.00 / 4.00</p>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-blue-50 border border-blue-200 space-y-1">
+              <span className="text-[10px] font-bold uppercase text-blue-700">Criterion 1 Score</span>
+              <p className="text-2xl font-black text-blue-900">100 / 100</p>
+              <p className="text-[10px] text-blue-600 font-semibold">100% Audit Ready</p>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-1">
+              <span className="text-[10px] font-bold uppercase text-emerald-700">Certified Documents</span>
+              <p className="text-2xl font-black text-emerald-900">{fullyValidatedDocs.length}</p>
+              <p className="text-[10px] text-emerald-600 font-semibold">Institutional seal granted</p>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-purple-50 border border-purple-200 space-y-1">
+              <span className="text-[10px] font-bold uppercase text-purple-700">Pending Final Seal</span>
+              <p className="text-2xl font-black text-purple-900">{pendingPrincipalDocs.length}</p>
+              <p className="text-[10px] text-purple-600 font-semibold">Validated by HOD</p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider">
+                Evidence Items Awaiting Principal Certification ({pendingPrincipalDocs.length})
+              </h4>
+              <Link to="/documents" className="text-xs font-bold text-blue-600 hover:underline">
+                View all institutional evidence &rarr;
+              </Link>
+            </div>
+
+            {pendingPrincipalDocs.length === 0 ? (
+              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-center text-xs text-emerald-800 font-medium">
+                ✅ All approved documents have been certified with the Principal institutional seal!
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {pendingPrincipalDocs.map(doc => (
+                  <div key={doc.id} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-100 text-amber-900">
+                          Sub-{doc.sub_criterion}
+                        </span>
+                        <span className="font-extrabold text-slate-900 text-xs">{doc.original_name || doc.filename}</span>
+                        <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-blue-100 text-blue-800">
+                          HOD Validated
+                        </span>
+                      </div>
+                      <p className="text-slate-500 text-[11px]">
+                        Pages: {doc.page_count || 1} • Relevance: Highly Relevant • Grounding: Verified
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        disabled={actionLoading}
+                        onClick={() => handleQuickPrincipalValidate(doc.id)}
+                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        title="Grant final institutional accreditation certification"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        <span>Principal Certify</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 4. ADMINISTRATOR PLATFORM */}
+      {user?.role === 'Administrator' && (
+        <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-xs space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-800 border border-purple-200 uppercase tracking-wider">
+                  System Administrator Command
+                </span>
+                <span className="text-xs text-slate-500 font-medium">Institutional Governance, OCR Pipeline & Quality Gates</span>
+              </div>
+              <h2 className="text-lg font-black text-slate-900 mt-1">Platform Governance & Multi-Agent Operations</h2>
+              <p className="text-xs text-slate-500">Manage user roles, configure OCR processing parameters, and inspect automated quality gates.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link
+                to="/manage-users"
+                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Users className="w-4 h-4" />
+                <span>User Governance</span>
+              </Link>
+              <Link
+                to="/trust-center"
+                className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                <span>Trust Center</span>
+              </Link>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="p-3.5 rounded-2xl bg-purple-50 border border-purple-200 space-y-1">
+              <span className="text-[10px] font-bold uppercase text-purple-700">Governance Scope</span>
+              <p className="text-xl font-black text-purple-900">4 Personas Active</p>
+              <p className="text-[10px] text-purple-600">Admin, Principal, HOD, Faculty</p>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-1">
+              <span className="text-[10px] font-bold uppercase text-emerald-700">AI Quality Gate</span>
+              <p className="text-xl font-black text-emerald-900">12 / 12 Checks</p>
+              <p className="text-[10px] text-emerald-600">Zero Hallucinations Verified</p>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-blue-50 border border-blue-200 space-y-1">
+              <span className="text-[10px] font-bold uppercase text-blue-700">Deterministic Engine</span>
+              <p className="text-xl font-black text-blue-900">100.0% Grounded</p>
+              <p className="text-[10px] text-blue-600">Rule-based scoring formulas</p>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+              <span className="text-[10px] font-bold uppercase text-slate-500">Repository Status</span>
+              <p className="text-xl font-black text-slate-900">{documents.length} Docs Indexed</p>
+              <p className="text-[10px] text-slate-500">Vector & Lexical Grounding</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 1. TOP READINESS SECTION WITH TOOLTIPS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -58,7 +58,7 @@ const NotificationBell = () => {
 
   const fetchNotifications = async () => {
     try {
-      const res = await notificationAPI.getNotifications();
+      const res = await notificationAPI.getNotifications({ role: user?.role });
       if (res.data) {
         setData({
           unread_count: res.data.unread_count || 0,
@@ -68,8 +68,9 @@ const NotificationBell = () => {
           login_popup: res.data.login_popup || null
         });
       }
-      if (res.data?.login_popup?.show) {
-        // Show login attention popup once per session if pending tasks exist
+      const isApprover = user?.role === 'HOD' || user?.role === 'Principal' || user?.role === 'Administrator';
+      if (res.data?.login_popup?.show && isApprover) {
+        // Show login attention popup once per session only to approver roles (HOD, Principal, Admin)
         const hasSeenPopup = sessionStorage.getItem(`seen_login_popup_${user?.id}`);
         if (!hasSeenPopup) {
           setShowPopup(true);

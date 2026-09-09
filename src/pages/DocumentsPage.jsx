@@ -177,7 +177,7 @@ const DocumentsPage = ({ isDemoMode }) => {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-800 focus:outline-none"
+              className="px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer"
             >
               <option value="All">All Statuses</option>
               <option value="Pending HOD Validation">Pending HOD Validation</option>
@@ -187,6 +187,49 @@ const DocumentsPage = ({ isDemoMode }) => {
               <option value="Rejected by HOD">Rejected by HOD</option>
             </select>
           </div>
+
+          {/* Quick Role-Specific Filter Buttons */}
+          {(user?.role === 'HOD' || user?.role === 'Administrator') && (
+            <button
+              type="button"
+              onClick={() => setStatusFilter(statusFilter === 'Pending HOD Validation' ? 'All' : 'Pending HOD Validation')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                statusFilter === 'Pending HOD Validation'
+                  ? 'bg-blue-600 text-white shadow-2xs'
+                  : 'bg-blue-50 text-blue-800 hover:bg-blue-100 border border-blue-200'
+              }`}
+            >
+              🎓 Needs HOD Review
+            </button>
+          )}
+
+          {(user?.role === 'Principal' || user?.role === 'Administrator') && (
+            <button
+              type="button"
+              onClick={() => setStatusFilter(statusFilter === 'Pending Principal Validation' ? 'All' : 'Pending Principal Validation')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                statusFilter === 'Pending Principal Validation'
+                  ? 'bg-amber-600 text-white shadow-2xs'
+                  : 'bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200'
+              }`}
+            >
+              🏛️ Needs Principal Seal
+            </button>
+          )}
+
+          {(user?.role === 'Faculty') && (
+            <button
+              type="button"
+              onClick={() => setStatusFilter(statusFilter === 'Revision Requested' ? 'All' : 'Revision Requested')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                statusFilter === 'Revision Requested'
+                  ? 'bg-purple-600 text-white shadow-2xs'
+                  : 'bg-purple-50 text-purple-900 hover:bg-purple-100 border border-purple-200'
+              }`}
+            >
+              ⚠️ Revision Needed
+            </button>
+          )}
         </div>
 
         <div className="text-xs text-slate-500 font-semibold">

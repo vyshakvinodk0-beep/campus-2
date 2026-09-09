@@ -39,7 +39,7 @@ export function authMiddleware(req: AuthenticatedRequest, res: Response, next: N
   if (!user) {
     // Gracefully restore in-memory user record on server restart/hot-reload
     const cleanEmail = decoded.sub.toLowerCase();
-    const inferredRole = (decoded.role as any) || (cleanEmail.includes('admin') || cleanEmail.includes('vyshak')
+    const inferredRole = (decoded.role as any) || (cleanEmail.includes('admin')
       ? 'Administrator'
       : cleanEmail.includes('principal')
       ? 'Principal'

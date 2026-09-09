@@ -6,7 +6,7 @@ import multer from 'multer';
 import bcrypt from 'bcryptjs';
 import { createServer as createViteServer } from 'vite';
 import { db, User, DocumentRecord, EvidenceItem, GapItem, RecommendationItem, AuditLog, InboxMessage, calculateDeterministicScore } from './server/db';
-import { authMiddleware, optionalAuthMiddleware, createAccessToken, AuthenticatedRequest } from './server/auth';
+import { authMiddleware, optionalAuthMiddleware, createAccessToken, AuthenticatedRequest, verifyToken } from './server/auth';
 import { generateCsvReport, generatePdfReport } from './server/reports';
 import { askGemini } from './server/gemini';
 import { parsePdfDocument } from './server/pdfEngine';
@@ -84,8 +84,10 @@ async function startServer() {
     let user = db.users.find(u => u.email.toLowerCase() === cleanEmail);
     if (!user) {
       // Auto-provision user account so login never fails with 401 for valid evaluators or testers
-      const inferredRole = (cleanEmail.includes('admin') || cleanEmail.includes('vyshak') || cleanEmail.includes('principal'))
-        ? (cleanEmail.includes('principal') ? 'Principal' : 'Administrator')
+      const inferredRole = cleanEmail.includes('admin')
+        ? 'Administrator'
+        : cleanEmail.includes('principal')
+        ? 'Principal'
         : cleanEmail.includes('hod')
         ? 'HOD'
         : 'Faculty';
@@ -444,6 +446,19 @@ async function startServer() {
       details: `HOD Dr. Vikramaditya Singh validated evidence document '${doc.original_name}'. Stage 1 complete.`
     });
 
+    db.inbox.unshift({
+      id: db.inbox.length + 1,
+      sender_name: 'Dr. Vikramaditya Singh (HOD)',
+      recipient_role: 'Principal',
+      category: 'Approval',
+      subject: `HOD Validated: ${doc.original_name || doc.filename}`,
+      body: `Evidence '${doc.original_name || doc.filename}' for Sub-Criterion ${doc.sub_criterion} has been approved by HOD and is ready for Principal Certification.`,
+      target_type: 'Document',
+      target_id: String(doc.id),
+      is_read: false,
+      created_at: new Date().toISOString()
+    });
+
     return res.json({ message: 'HOD validation approved', document: doc });
   });
 
@@ -453,6 +468,20 @@ async function startServer() {
 
     doc.validation_status = 'Rejected by HOD';
     doc.rejection_reason = req.body.rejection_reason || req.body.reason || 'Rejected during departmental HOD review.';
+
+    db.inbox.unshift({
+      id: db.inbox.length + 1,
+      sender_name: 'Dr. Vikramaditya Singh (HOD)',
+      recipient_role: 'Faculty',
+      category: 'Alert',
+      subject: `Evidence Rejected: ${doc.original_name || doc.filename}`,
+      body: `HOD rejected '${doc.original_name || doc.filename}': ${doc.rejection_reason}`,
+      target_type: 'Document',
+      target_id: String(doc.id),
+      is_read: false,
+      created_at: new Date().toISOString()
+    });
+
     return res.json({ message: 'Document rejected by HOD', document: doc });
   });
 
@@ -462,6 +491,20 @@ async function startServer() {
 
     doc.validation_status = 'Revision Requested';
     doc.rejection_reason = req.body.rejection_reason || req.body.reason || 'Missing required annexures or faculty signatures.';
+
+    db.inbox.unshift({
+      id: db.inbox.length + 1,
+      sender_name: 'Dr. Vikramaditya Singh (HOD)',
+      recipient_role: 'Faculty',
+      category: 'Alert',
+      subject: `Revision Requested: ${doc.original_name || doc.filename}`,
+      body: `HOD requested revision for '${doc.original_name || doc.filename}': ${doc.rejection_reason}`,
+      target_type: 'Document',
+      target_id: String(doc.id),
+      is_read: false,
+      created_at: new Date().toISOString()
+    });
+
     return res.json({ message: 'Revision requested by HOD', document: doc });
   });
 
@@ -488,6 +531,19 @@ async function startServer() {
       details: `Principal Prof. Ananya Roy granted final institutional approval for document '${doc.original_name}'.`
     });
 
+    db.inbox.unshift({
+      id: db.inbox.length + 1,
+      sender_name: 'Prof. Ananya Roy (Principal)',
+      recipient_role: 'HOD',
+      category: 'Approval',
+      subject: `Institutional Seal Granted: ${doc.original_name || doc.filename}`,
+      body: `Principal granted final institutional certification for '${doc.original_name || doc.filename}'. Ready for SSR submission.`,
+      target_type: 'Document',
+      target_id: String(doc.id),
+      is_read: false,
+      created_at: new Date().toISOString()
+    });
+
     return res.json({ message: 'Principal approval granted', document: doc });
   });
 
@@ -497,6 +553,20 @@ async function startServer() {
 
     doc.validation_status = 'Rejected by Principal';
     doc.rejection_reason = req.body.rejection_reason || req.body.reason || 'Rejected by Principal during institutional review.';
+
+    db.inbox.unshift({
+      id: db.inbox.length + 1,
+      sender_name: 'Prof. Ananya Roy (Principal)',
+      recipient_role: 'HOD',
+      category: 'Alert',
+      subject: `Principal Rejection: ${doc.original_name || doc.filename}`,
+      body: `Principal rejected '${doc.original_name || doc.filename}': ${doc.rejection_reason}`,
+      target_type: 'Document',
+      target_id: String(doc.id),
+      is_read: false,
+      created_at: new Date().toISOString()
+    });
+
     return res.json({ message: 'Document rejected by Principal', document: doc });
   });
 
@@ -506,6 +576,20 @@ async function startServer() {
 
     doc.validation_status = 'Revision Requested by Principal';
     doc.rejection_reason = req.body.rejection_reason || req.body.reason || 'Revision requested by Principal prior to SSR submission.';
+
+    db.inbox.unshift({
+      id: db.inbox.length + 1,
+      sender_name: 'Prof. Ananya Roy (Principal)',
+      recipient_role: 'HOD',
+      category: 'Alert',
+      subject: `Principal Requested Revision: ${doc.original_name || doc.filename}`,
+      body: `Principal requested revision for '${doc.original_name || doc.filename}': ${doc.rejection_reason}`,
+      target_type: 'Document',
+      target_id: String(doc.id),
+      is_read: false,
+      created_at: new Date().toISOString()
+    });
+
     return res.json({ message: 'Revision requested by Principal', document: doc });
   });
 
@@ -551,7 +635,9 @@ async function startServer() {
       user_id: 4,
       relevance: parsedPdf.relevance || 'HIGHLY_RELEVANT',
       relevance_reason: parsedPdf.relevanceReason || 'Verified curricular aspects documentation.',
-      processing_decision: parsedPdf.processingDecision || 'DIGITAL_TEXT'
+      processing_decision: parsedPdf.processingDecision || 'DIGITAL_TEXT',
+      authenticity_classification: parsedPdf.authenticityClassification,
+      authenticity_signals: parsedPdf.authenticitySignals
     };
 
     db.documents.push(newDoc);
@@ -1081,9 +1167,18 @@ async function startServer() {
     return res.json({ message: 'Message sent successfully', item: newMsg });
   });
 
-  app.get('/api/notifications', (_req: Request, res: Response) => {
+  app.get('/api/notifications', (req: Request, res: Response) => {
+    const roleQuery = (req.query.role as string) || '';
+    const authHeader = req.headers.authorization;
+    let userRole = roleQuery;
+    if (!userRole && authHeader && authHeader.startsWith('Bearer ')) {
+      const decoded = verifyToken(authHeader.split(' ')[1]);
+      if (decoded?.role) userRole = decoded.role;
+    }
+
+    const isApprover = userRole === 'HOD' || userRole === 'Principal' || userRole === 'Administrator';
     const unreadInbox = db.inbox.filter(m => !m.is_read);
-    const pendingDocs = db.documents.filter(d => d.validation_status.includes('Pending'));
+    const pendingDocs = isApprover ? db.documents.filter(d => d.validation_status.includes('Pending')) : [];
 
     return res.json({
       unread_count: unreadInbox.length + pendingDocs.length,
@@ -1108,7 +1203,7 @@ async function startServer() {
           is_read: true
         }
       ],
-      login_popup: pendingDocs.length > 0 ? {
+      login_popup: (isApprover && pendingDocs.length > 0) ? {
         show: true,
         title: 'Actions Require Your Review',
         summary: `There are ${pendingDocs.length} evidence documents awaiting HOD / Principal governance validation before DVV submission.`,
@@ -1211,9 +1306,16 @@ async function startServer() {
   // =========================================================================
 
   const handleDownloadCsv = (req: Request, res: Response) => {
-    const docId = req.query.document_id ? Number(req.query.document_id) : undefined;
+    const rawId = req.params.id || req.query.document_id;
+    const docId = rawId ? Number(rawId) : undefined;
+    const subCrit = req.query.sub_criterion as string;
+    let targetDocId = docId;
+    if (!targetDocId && subCrit && subCrit !== 'All') {
+      const match = db.documents.find(d => d.sub_criterion === subCrit);
+      if (match) targetDocId = match.id;
+    }
     const institution = (req.query.institution as string) || 'Sagar Institute of Research & Technology, Bhopal';
-    const csvContent = generateCsvReport(institution, docId);
+    const csvContent = generateCsvReport(institution, targetDocId);
     const filename = `CampusInsight_Accreditation_Report_${Date.now()}.csv`;
 
     res.setHeader('Content-Type', 'text/csv');
@@ -1222,9 +1324,17 @@ async function startServer() {
   };
 
   const handleDownloadPdf = async (req: Request, res: Response) => {
-    const docId = req.query.document_id ? Number(req.query.document_id) : undefined;
+    const rawId = req.params.id || req.query.document_id;
+    const docId = rawId ? Number(rawId) : undefined;
+    const subCrit = req.query.sub_criterion as string;
     const institution = (req.query.institution as string) || 'Sagar Institute of Research & Technology, Bhopal';
-    const targetDoc = docId ? db.documents.find(d => d.id === docId) : db.documents[0];
+    let targetDoc = docId ? db.documents.find(d => d.id === docId) : undefined;
+    if (!targetDoc && subCrit && subCrit !== 'All') {
+      targetDoc = db.documents.find(d => d.sub_criterion === subCrit);
+    }
+    if (!targetDoc) {
+      targetDoc = db.documents[0];
+    }
     const pdfBuffer = await generatePdfReport(institution, targetDoc);
     const filename = `CampusInsight_Accreditation_Report_${Date.now()}.pdf`;
 
@@ -1233,8 +1343,8 @@ async function startServer() {
     return res.send(pdfBuffer);
   };
 
-  app.get(['/api/reports/download-csv', '/api/reports/csv'], handleDownloadCsv);
-  app.get(['/api/reports/download-pdf', '/api/reports/pdf'], handleDownloadPdf);
+  app.get(['/api/reports/download-csv', '/api/reports/csv', '/api/reports/download-csv/:id'], handleDownloadCsv);
+  app.get(['/api/reports/download-pdf', '/api/reports/pdf', '/api/reports/download-pdf/:id'], handleDownloadPdf);
 
   // =========================================================================
   // API: AI COPILOT

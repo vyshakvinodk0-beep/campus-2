@@ -73,7 +73,7 @@ export const documentAPI = {
 };
 
 export const notificationAPI = {
-  getNotifications: () => api.get('/notifications'),
+  getNotifications: (params) => api.get('/notifications', { params }),
   markAllRead: () => api.post('/notifications/mark-read'),
 };
 

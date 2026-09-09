@@ -658,51 +658,51 @@ const ReportsPage = () => {
             Internal impact rating reflects qualitative risk reduction (HIGH / MEDIUM / LOW). Derived directly from originating evidence gaps.
           </p>
           <div className="overflow-x-auto rounded-2xl border border-slate-200">
-            <table className="w-full text-left text-xs">
+            <table className="min-w-[850px] w-full text-left text-xs border-collapse">
               <thead className="bg-blue-900 text-white font-bold uppercase text-[10px] tracking-wider">
                 <tr>
-                  <th className="px-4 py-2.5">Action Item</th>
-                  <th className="px-4 py-2.5">Responsible Role</th>
-                  <th className="px-4 py-2.5">Timeframe</th>
-                  <th className="px-4 py-2.5">Expected Internal Impact</th>
-                  <th className="px-4 py-2.5">Impact Rationale</th>
+                  <th className="w-1/4 px-4 py-3">Action Item</th>
+                  <th className="w-1/6 px-4 py-3">Responsible Role</th>
+                  <th className="w-1/8 px-4 py-3">Timeframe</th>
+                  <th className="w-1/8 px-4 py-3">Expected Internal Impact</th>
+                  <th className="w-1/3 px-4 py-3">Impact Rationale</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 font-medium">
                 {currentRecs.length > 0 ? (
                   currentRecs.map((rec, idx) => (
                     <tr key={idx} className={idx % 2 === 0 ? "bg-slate-50/50" : "bg-white"}>
-                      <td className="px-4 py-2.5 font-bold text-slate-900">{rec.title}</td>
-                      <td className="px-4 py-2.5 text-slate-700">{rec.responsible_role || 'Department NAAC Coordinator'}</td>
-                      <td className="px-4 py-2.5 text-slate-700">{rec.priority === 'High' ? 'Immediate (15 Days)' : 'Mid-Term (45 Days)'}</td>
-                      <td className={`px-4 py-2.5 font-bold ${rec.priority === 'High' ? 'text-rose-700' : 'text-amber-700'}`}>
+                      <td className="px-4 py-3 font-bold text-slate-900 break-words leading-relaxed">{rec.title}</td>
+                      <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{rec.responsible_role || 'Department NAAC Coordinator'}</td>
+                      <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{rec.priority === 'High' ? 'Immediate (15 Days)' : 'Mid-Term (45 Days)'}</td>
+                      <td className={`px-4 py-3 font-bold whitespace-nowrap ${rec.priority === 'High' ? 'text-rose-700' : 'text-amber-700'}`}>
                         {rec.priority === 'High' ? 'HIGH' : 'MEDIUM'}
                       </td>
-                      <td className="px-4 py-2.5 text-slate-600">{rec.priority_reason || rec.why_flagged_reason || rec.recommendation_text}</td>
+                      <td className="px-4 py-3 text-slate-600 break-words leading-relaxed">{rec.priority_reason || rec.why_flagged_reason || rec.recommendation_text}</td>
                     </tr>
                   ))
                 ) : (
                   <>
                     <tr className="bg-slate-50/50">
-                      <td className="px-4 py-2.5 font-bold text-slate-900">Verify Curricular Planning Documentation &amp; Articulation Matrix (Metric 1.1.1)</td>
-                      <td className="px-4 py-2.5 text-slate-700">Faculty / Course Coordinators</td>
-                      <td className="px-4 py-2.5 text-slate-700">Mid-Term (45 Days)</td>
-                      <td className="px-4 py-2.5 font-bold text-amber-700">MEDIUM</td>
-                      <td className="px-4 py-2.5 text-slate-600">Addresses unverified CO-PO-PSO articulation matrix and academic calendar adherence evidence under Metric 1.1.1.</td>
+                      <td className="px-4 py-3 font-bold text-slate-900 break-words leading-relaxed">Verify Curricular Planning Documentation &amp; Articulation Matrix (Metric 1.1.1)</td>
+                      <td className="px-4 py-3 text-slate-700 whitespace-nowrap">Faculty / Course Coordinators</td>
+                      <td className="px-4 py-3 text-slate-700 whitespace-nowrap">Mid-Term (45 Days)</td>
+                      <td className="px-4 py-3 font-bold text-amber-700 whitespace-nowrap">MEDIUM</td>
+                      <td className="px-4 py-3 text-slate-600 break-words leading-relaxed">Addresses unverified CO-PO-PSO articulation matrix and academic calendar adherence evidence under Metric 1.1.1.</td>
                     </tr>
                     <tr className="bg-white">
-                      <td className="px-4 py-2.5 font-bold text-slate-900">Compile Old vs New Syllabus Revision Delta Matrices (Metric 1.1.2)</td>
-                      <td className="px-4 py-2.5 text-slate-700">HOD / Curriculum Committee</td>
-                      <td className="px-4 py-2.5 text-slate-700">Immediate (15 Days)</td>
-                      <td className="px-4 py-2.5 font-bold text-rose-700">HIGH</td>
-                      <td className="px-4 py-2.5 text-slate-600">Provides comparative old vs new course delta matrices and Academic Council notifications under Metric 1.1.2.</td>
+                      <td className="px-4 py-3 font-bold text-slate-900 break-words leading-relaxed">Compile Old vs New Syllabus Revision Delta Matrices (Metric 1.1.2)</td>
+                      <td className="px-4 py-3 text-slate-700 whitespace-nowrap">HOD / Curriculum Committee</td>
+                      <td className="px-4 py-3 text-slate-700 whitespace-nowrap">Immediate (15 Days)</td>
+                      <td className="px-4 py-3 font-bold text-rose-700 whitespace-nowrap">HIGH</td>
+                      <td className="px-4 py-3 text-slate-600 break-words leading-relaxed">Provides comparative old vs new course delta matrices and Academic Council notifications under Metric 1.1.2.</td>
                     </tr>
                     <tr className="bg-slate-50/50">
-                      <td className="px-4 py-2.5 font-bold text-slate-900">Map Course Syllabi to Employability / Skill Development Modules (Metric 1.1.3)</td>
-                      <td className="px-4 py-2.5 text-slate-700">Department NAAC Coordinator</td>
-                      <td className="px-4 py-2.5 text-slate-700">Immediate (15 Days)</td>
-                      <td className="px-4 py-2.5 font-bold text-rose-700">HIGH</td>
-                      <td className="px-4 py-2.5 text-slate-600">Documents course syllabi unit highlighting and department mapping matrices for employability and skill development under Metric 1.1.3.</td>
+                      <td className="px-4 py-3 font-bold text-slate-900 break-words leading-relaxed">Map Course Syllabi to Employability / Skill Development Modules (Metric 1.1.3)</td>
+                      <td className="px-4 py-3 text-slate-700 whitespace-nowrap">Department NAAC Coordinator</td>
+                      <td className="px-4 py-3 text-slate-700 whitespace-nowrap">Immediate (15 Days)</td>
+                      <td className="px-4 py-3 font-bold text-rose-700 whitespace-nowrap">HIGH</td>
+                      <td className="px-4 py-3 text-slate-600 break-words leading-relaxed">Documents course syllabi unit highlighting and department mapping matrices for employability and skill development under Metric 1.1.3.</td>
                     </tr>
                   </>
                 )}

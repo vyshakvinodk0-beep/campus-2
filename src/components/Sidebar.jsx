@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 
 const Sidebar = () => {
-  const { user } = useAuth();
+  const { user, isSimulating } = useAuth();
 
   const navItems = [
     { to: '/', label: 'Overview Dashboard', icon: LayoutDashboard, exact: true },
@@ -95,8 +95,15 @@ const Sidebar = () => {
           <div className="w-7 h-7 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-xs shadow-2xs shrink-0">
             {user?.role === 'Administrator' ? '🔑' : user?.role === 'Principal' ? '🏛️' : user?.role === 'HOD' ? '🎓' : '👨‍🏫'}
           </div>
-          <div className="overflow-hidden">
-            <div className="text-[10px] uppercase font-bold text-slate-400 leading-tight">Active View</div>
+          <div className="overflow-hidden flex-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase font-bold text-slate-400 leading-tight">Active View</span>
+              {isSimulating && (
+                <span className="text-[9px] font-black text-amber-700 bg-amber-100 px-1 py-0.2 rounded border border-amber-200">
+                  Preview
+                </span>
+              )}
+            </div>
             <div className="text-xs font-black text-slate-800 truncate">
               {user?.role === 'Administrator' 
                 ? 'System Admin' 

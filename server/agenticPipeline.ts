@@ -3,7 +3,7 @@ import { db, DocumentRecord, EvidenceItem, GapItem, RecommendationItem, AuditLog
 import { HardVerifiedGate, buildRegistryFromPipeline, ConsistencyValidator, EvidenceRegistryItem } from './evidenceRegistry';
 
 export type EvidenceStatus = 'VERIFIED' | 'PARTIALLY_VERIFIED' | 'NOT_VERIFIED' | 'MISSING' | 'CONFLICTING' | 'LOW_CONFIDENCE' | 'SUPPORTED' | 'PARTIALLY_SUPPORTED' | 'EVIDENCE_NOT_FOUND';
-export type GapSeverity = 'Critical' | 'High' | 'Medium' | 'Low';
+export type GapSeverity = 'Critical' | 'High' | 'Medium' | 'Low' | 'DEMONSTRATION-ONLY EVIDENCE GAP';
 export type FinalReadinessRecommendation = 'READY' | 'MOSTLY READY' | 'PARTIALLY READY' | 'NOT READY' | 'INSUFFICIENT EVIDENCE';
 
 export interface GroundedEvidence {
@@ -66,14 +66,14 @@ export const CRITERION_1_KNOWLEDGE_BASE: CriterionKnowledgeMetric[] = [
     keywords: ['board of studies', 'bos', 'minutes of meeting', 'academic council', 'po-co', 'course outcome', 'program outcome', 'academic calendar', 'curriculum planning', 'lesson plan'],
     validation_rules: ['Must have verified meeting date and signed member signatures', 'Must include PO-CO articulation table', 'Must demonstrate adherence to approved timeline'],
     scoring_weight: 15,
-    gap_conditions: 'Missing countersigned BOS minutes or absent PO-CO attainment articulation matrix',
-    recommendation_template: 'Organize formal BOS committee convening, document minute resolutions with member signatures, and publish calibrated PO-CO matrices across all department programs.',
+    gap_conditions: 'Required supporting evidence could not be verified in the uploaded document. Missing countersigned BOS minutes or unverified PO-CO articulation matrix.',
+    recommendation_template: 'Verify whether an authentic institutional record exists for BOS minutes and PO-CO articulation. If available, upload the original approved record. If unavailable, follow the institution\'s established academic governance and documentation process.',
     mandatory: true,
     framework_version: 'NAAC Manual v2024.1 (Criterion 1 Curricular Aspects)',
-    what_is_missing_default: 'Approved and countersigned Department CO-PO-PSO Articulation Matrix & Academic Calendar Adherence Records',
+    what_is_missing_default: 'Approved Department CO-PO-PSO Articulation Matrix & Academic Calendar Adherence Records',
     why_it_matters_default: 'NAAC Criterion 1.1.1 requires evidence that curriculum delivery follows a planned process with formal governance approvals and measurable outcome mapping.',
-    what_to_do_default: 'Compile approved BOS meeting minutes with member signatures, cross-reference course outcome mappings, and archive academic calendar adherence logs.',
-    how_to_verify_default: 'Verify principal and HOD signatures on BOS minutes, validate date-stamped academic calendar, and confirm CO-PO articulation matrices are officially notified.'
+    what_to_do_default: 'Verify whether an authentic institutional record exists. If available, upload the original approved record. If unavailable, follow the institution\'s established academic governance and documentation process.',
+    how_to_verify_default: 'Verify the authenticity, approval authority, dates, signatures or endorsements where applicable, and linkage to the relevant institutional record.'
   },
   {
     metric_id: '1.1.2',
@@ -85,14 +85,14 @@ export const CRITERION_1_KNOWLEDGE_BASE: CriterionKnowledgeMetric[] = [
     keywords: ['syllabus revision', 'curriculum revision', 'revision percentage', 'percentage of programmes', 'old vs new', 'comparison matrix', 'revised courses', 'board of studies revision'],
     validation_rules: ['Minimum 20% course delta highlighted per revised programme', 'Academic Council notification must match academic year stamp'],
     scoring_weight: 15,
-    gap_conditions: 'Revision claimed in SSR text but comparative old vs new course delta matrices are missing or uncertified',
-    recommendation_template: 'Prepare structured old vs new curriculum comparison tables highlighting modified course content percentages and secure Academic Council gazette notifications.',
+    gap_conditions: 'Required supporting evidence could not be verified in the uploaded document. Comparative syllabus delta matrices or Academic Council notifications not located.',
+    recommendation_template: 'Verify whether an authentic syllabus revision delta record exists. If available, upload the original approved comparison matrices. If unavailable, follow the institution\'s established academic documentation process.',
     mandatory: true,
     framework_version: 'NAAC Manual v2024.1 (Criterion 1 Curricular Aspects)',
     what_is_missing_default: 'Comparative Course Delta Matrices (Old vs New) & Academic Council Approval Notices',
     why_it_matters_default: 'Without comparative syllabus delta tables, claims of curriculum revision cannot be quantitatively verified during DVV peer audit.',
-    what_to_do_default: 'Prepare structured old vs new curriculum comparison tables with highlighted revised units and obtain formal Academic Council endorsement.',
-    how_to_verify_default: 'Verify syllabus version numbers, effective academic year dates, and statutory council approval signatures.'
+    what_to_do_default: 'Verify whether an authentic institutional record exists. If available, upload the original approved record. If unavailable, follow the institution\'s established curriculum revision documentation process.',
+    how_to_verify_default: 'Verify the authenticity, approval authority, dates, signatures or endorsements where applicable, and linkage to the relevant institutional record.'
   },
   {
     metric_id: '1.1.3',
@@ -104,14 +104,14 @@ export const CRITERION_1_KNOWLEDGE_BASE: CriterionKnowledgeMetric[] = [
     keywords: ['employability', 'entrepreneurship', 'skill development', 'industry relevant', 'practical training', 'hands-on labs', 'skill-oriented courses'],
     validation_rules: ['Highlight exact syllabus lines and course outcome codes addressing skills/employability'],
     scoring_weight: 10,
-    gap_conditions: 'Courses claimed to offer employability focus without syllabus-level keyword highlighting or BOS ratification',
-    recommendation_template: 'Map all course catalog offerings against NSDC/AICTE skill development categories and highlight experiential learning units in published course syllabi.',
+    gap_conditions: 'Required supporting evidence could not be verified in the uploaded document. Course syllabi unit highlighting or department mapping matrices not verified.',
+    recommendation_template: 'Verify whether authentic approved course syllabi with highlighted skill/employability units exist. If available, upload the original documents. If unavailable, follow the institution\'s established documentation process.',
     mandatory: true,
     framework_version: 'NAAC Manual v2024.1 (Criterion 1 Curricular Aspects)',
     what_is_missing_default: 'Course Syllabi with Highlighted Skill/Employability Units & Department Mapping Matrices',
     why_it_matters_default: 'Metric 1.1.3 requires documentary proof that specific course units directly build employability and entrepreneurship capabilities.',
-    what_to_do_default: 'Annotate course syllabus documents highlighting units dedicated to employability and entrepreneurship, and create a certified department-wide mapping table.',
-    how_to_verify_default: 'Cross-check course codes with approved scheme of instruction and verify BOS member endorsements.'
+    what_to_do_default: 'Verify whether an authentic institutional record exists. If available, upload the original approved record. If unavailable, follow the institution\'s established academic documentation process.',
+    how_to_verify_default: 'Verify the authenticity, approval authority, dates, signatures or endorsements where applicable, and linkage to the relevant institutional record.'
   },
 
   // ==========================================
@@ -127,14 +127,14 @@ export const CRITERION_1_KNOWLEDGE_BASE: CriterionKnowledgeMetric[] = [
     keywords: ['new courses', 'new courses introduced', 'curriculum introduction', 'new elective courses', 'course approvals', 'academic council new courses'],
     validation_rules: ['Verification of course introduction year within the 5-year assessment window', 'Signed academic council sanction document'],
     scoring_weight: 12,
-    gap_conditions: 'New courses listed in text without supporting syllabus approvals or sanction notifications',
-    recommendation_template: 'Compile consolidated master list of all newly introduced courses across the 5-year assessment period accompanied by date-stamped BOS/Academic Council sanction letters.',
+    gap_conditions: 'Required supporting evidence could not be verified in the uploaded document. Academic Council resolutions or new course syllabi copies not located.',
+    recommendation_template: 'Verify whether authentic Academic Council approval orders and syllabi copies for new courses exist. If available, upload the original approved records. If unavailable, follow the institution\'s established academic governance process.',
     mandatory: true,
     framework_version: 'NAAC Manual v2024.1 (Criterion 1 Curricular Aspects)',
     what_is_missing_default: 'Master List of Newly Introduced Courses with Academic Council Sanction Orders & Syllabi Copies',
     why_it_matters_default: 'Metric 1.2.1 evaluates institutional responsiveness and curricular dynamism through authenticated course introduction records.',
-    what_to_do_default: 'Compile year-wise list of new courses introduced over the 5-year assessment window with university/statutory council sanction orders.',
-    how_to_verify_default: 'Verify introduction dates, syllabus copies, and Academic Council meeting minutes.'
+    what_to_do_default: 'Verify whether an authentic institutional record exists. If available, upload the original approved record. If unavailable, follow the institution\'s established academic documentation process.',
+    how_to_verify_default: 'Verify the authenticity, approval authority, dates, signatures or endorsements where applicable, and linkage to the relevant institutional record.'
   },
   {
     metric_id: '1.2.2',
@@ -146,14 +146,14 @@ export const CRITERION_1_KNOWLEDGE_BASE: CriterionKnowledgeMetric[] = [
     keywords: ['cbcs', 'choice based credit system', 'elective course system', 'open electives', 'professional electives', 'credit framework', 'interdisciplinary electives'],
     validation_rules: ['CBCS framework clearly delineated in academic regulations handbook', 'Open elective student enrollment registers verified'],
     scoring_weight: 14,
-    gap_conditions: 'Absence of statutory CBCS implementation executive order or incomplete open elective course lists',
-    recommendation_template: 'Formulate institutional CBCS operating guidelines and ensure open elective baskets are published on the academic portal with transparent student registration logs.',
+    gap_conditions: 'Required supporting evidence could not be verified in the uploaded document. Institutional CBCS policy document or departmental elective rosters not confirmed.',
+    recommendation_template: 'Verify whether authentic institutional CBCS policy regulations and elective course rosters exist. If available, upload the official approved policy. If unavailable, follow the institution\'s established academic documentation process.',
     mandatory: true,
     framework_version: 'NAAC Manual v2024.1 (Criterion 1 Curricular Aspects)',
     what_is_missing_default: 'Institutional CBCS Implementation Policy Document & Departmental Elective Course Baskets',
     why_it_matters_default: 'Metric 1.2.2 requires statutory proof of elective choice and interdisciplinary credit flexibility across programs.',
-    what_to_do_default: 'Publish approved CBCS academic regulations handbook, define open and professional elective baskets, and document student enrollment records.',
-    how_to_verify_default: 'Inspect Academic Regulations document, university affiliation statutes, and student course registration logs.'
+    what_to_do_default: 'Verify whether an authentic institutional record exists. If available, upload the original approved record. If unavailable, follow the institution\'s established academic documentation process.',
+    how_to_verify_default: 'Verify the authenticity, approval authority, dates, signatures or endorsements where applicable, and linkage to the relevant institutional record.'
   },
   {
     metric_id: '1.2.3',
@@ -165,14 +165,14 @@ export const CRITERION_1_KNOWLEDGE_BASE: CriterionKnowledgeMetric[] = [
     keywords: ['moocs', 'swayam', 'nptel', 'credit transfer', 'online courses', 'equivalence policy', 'coursera', 'credit equivalence', 'credit waiver'],
     validation_rules: ['Must have formal credit transfer resolution passed by Academic Council', 'Student marksheet sample showing credit transfer endorsement'],
     scoring_weight: 14,
-    gap_conditions: 'Credit transfer claimed but institutional credit transfer equivalence policy is unverified or lacks marksheet proof',
-    recommendation_template: 'Draft and gazette institutional Credit Transfer and Equivalence Policy for SWAYAM/NPTEL courses and record credit transfers in semester grade transcripts.',
+    gap_conditions: 'Required supporting evidence could not be verified in the uploaded document. Credit transfer equivalence policy or student grade transcripts not verified.',
+    recommendation_template: 'Verify whether an authentic institutional MOOCs/SWAYAM credit transfer policy exists. If available, upload the original Academic Council notification. If unavailable, follow the institution\'s established governance process.',
     mandatory: false,
     framework_version: 'NAAC Manual v2024.1 (Criterion 1 Curricular Aspects)',
     what_is_missing_default: 'Institutional Credit Transfer & Grade Equivalence Policy for Online MOOCs/SWAYAM Courses',
     why_it_matters_default: 'Metric 1.2.3 promotes national digital education integration; claims require formal Academic Council equivalence guidelines.',
-    what_to_do_default: 'Gazette institutional credit transfer policy for SWAYAM/NPTEL courses and document student credit transfer entries on grade transcripts.',
-    how_to_verify_default: 'Check Academic Council resolution, course equivalence mapping matrix, and student grade sheets.'
+    what_to_do_default: 'Verify whether an authentic institutional record exists. If available, upload the original approved record. If unavailable, follow the institution\'s established academic documentation process.',
+    how_to_verify_default: 'Verify the authenticity, approval authority, dates, signatures or endorsements where applicable, and linkage to the relevant institutional record.'
   },
 
   // ==========================================
@@ -188,14 +188,14 @@ export const CRITERION_1_KNOWLEDGE_BASE: CriterionKnowledgeMetric[] = [
     keywords: ['professional ethics', 'gender equality', 'gender equity', 'human values', 'environment and sustainability', 'environmental studies', 'cyber ethics', 'constitutional values'],
     validation_rules: ['Course catalog must include dedicated credit units or modules in ethical, environmental, or gender topics', 'Syllabus excerpts must be indexed with page citations'],
     scoring_weight: 15,
-    gap_conditions: 'Cross-cutting narrative described in SSR without specific course code citations or syllabus module extracts',
-    recommendation_template: 'Create a cross-cutting curriculum matrix linking course codes to specific UN Sustainable Development Goals (SDGs), ethics, and environmental stewardship modules.',
+    gap_conditions: 'Required supporting evidence could not be verified in the uploaded document. Cross-cutting syllabus modules or mapping matrices not verified.',
+    recommendation_template: 'Verify whether authentic course syllabi indexing cross-cutting modules exist. If available, upload the original approved syllabus excerpts. If unavailable, follow the institution\'s established academic documentation process.',
     mandatory: true,
     framework_version: 'NAAC Manual v2024.1 (Criterion 1 Curricular Aspects)',
     what_is_missing_default: 'Cross-Cutting Curriculum Matrix with Syllabus Unit Highlighting for Ethics, Gender, and Environment',
     why_it_matters_default: 'Metric 1.3.1 requires demonstrable inclusion of human values, ethics, and sustainability modules in regular course curricula.',
-    what_to_do_default: 'Map all department course offerings against the 4 crosscutting themes, extract relevant syllabus units, and publish a verified curriculum integration report.',
-    how_to_verify_default: 'Verify syllabus course codes, module descriptions, and student completion records.'
+    what_to_do_default: 'Verify whether an authentic institutional record exists. If available, upload the original approved record. If unavailable, follow the institution\'s established academic documentation process.',
+    how_to_verify_default: 'Verify the authenticity, approval authority, dates, signatures or endorsements where applicable, and linkage to the relevant institutional record.'
   },
   {
     metric_id: '1.3.2',
@@ -207,14 +207,14 @@ export const CRITERION_1_KNOWLEDGE_BASE: CriterionKnowledgeMetric[] = [
     keywords: ['value-added courses', 'value added', 'certificate courses', 'contact hours', '30 hours', 'internships', 'student projects', 'field work', 'industrial training', 'completion certificate'],
     validation_rules: ['Value-added courses must have minimum 30 contact hours documented with syllabus and assessment', 'Student attendance sheets and certificates signed by coordinator'],
     scoring_weight: 15,
-    gap_conditions: 'Value-added programs listed without student completion certificate samples or 30-hour syllabus schedules',
-    recommendation_template: 'Maintain consolidated archives of 30+ contact hour value-added course brochures, attendance rosters, assessment rubrics, and signed student certificate copies.',
+    gap_conditions: 'Required supporting evidence could not be verified in the uploaded document. 30+ hour course syllabi, student attendance rosters, or certificates not located.',
+    recommendation_template: 'Verify whether authentic value-added course rosters and completion records exist. If available, upload original attendance logs and certificates. If unavailable, follow the institution\'s established academic documentation process.',
     mandatory: true,
     framework_version: 'NAAC Manual v2024.1 (Criterion 1 Curricular Aspects)',
     what_is_missing_default: '30+ Contact Hour Value-Added Course Syllabi, Attendance Rosters, Assessment Records, and Completion Certificates',
     why_it_matters_default: 'Metric 1.3.2 requires verifiable evidence of curriculum enrichment beyond the core curriculum with verified student participation.',
-    what_to_do_default: 'Consolidate 30-hour course curriculum brochures, day-wise attendance sheets, assessment rubrics, and countersigned student completion certificates.',
-    how_to_verify_default: 'Inspect course duration schedules, coordinator signatures, and student certificate archives.'
+    what_to_do_default: 'Verify whether an authentic institutional record exists. If available, upload the original approved record. If unavailable, follow the institution\'s established academic documentation process.',
+    how_to_verify_default: 'Verify the authenticity, approval authority, dates, signatures or endorsements where applicable, and linkage to the relevant institutional record.'
   },
 
   // ==========================================
@@ -230,14 +230,14 @@ export const CRITERION_1_KNOWLEDGE_BASE: CriterionKnowledgeMetric[] = [
     keywords: ['stakeholder feedback', 'student feedback', 'faculty feedback', 'teacher feedback', 'employer feedback', 'alumni feedback', 'feedback analysis', 'curriculum feedback', '4-stakeholder'],
     validation_rules: ['All 4 stakeholder groups must be documented with explicit sample sizes and response percentages', 'Consolidated analytical charts must be present'],
     scoring_weight: 10,
-    gap_conditions: 'Feedback collection claimed but employer or alumni feedback analytics are absent or incomplete',
-    recommendation_template: 'Deploy automated 4-stakeholder online feedback collection portals and generate certified department-wise analytical feedback reports annually.',
+    gap_conditions: 'Required supporting evidence could not be verified in the uploaded document. 4-stakeholder feedback analysis reports or employer/alumni analytics not located.',
+    recommendation_template: 'Verify whether authentic 4-stakeholder feedback analysis reports exist. If available, upload the original approved reports. If unavailable, follow the institution\'s established feedback collection and documentation process.',
     mandatory: true,
     framework_version: 'NAAC Manual v2024.1 (Criterion 1 Curricular Aspects)',
     what_is_missing_default: 'Consolidated 4-Stakeholder Feedback Analysis Reports (Students, Teachers, Employers, Alumni)',
     why_it_matters_default: 'Metric 1.4.1 mandates comprehensive feedback from all 4 designated stakeholder groups on curriculum design and relevance.',
-    what_to_do_default: 'Administer structured questionnaires to students, faculty, employers, and alumni, and produce certified statistical analysis charts.',
-    how_to_verify_default: 'Verify stakeholder response counts, survey instruments, and department feedback analysis summaries.'
+    what_to_do_default: 'Verify whether an authentic institutional record exists. If available, upload the original approved record. If unavailable, follow the institution\'s established feedback documentation process.',
+    how_to_verify_default: 'Verify the authenticity, approval authority, dates, signatures or endorsements where applicable, and linkage to the relevant institutional record.'
   },
   {
     metric_id: '1.4.2',
@@ -249,14 +249,14 @@ export const CRITERION_1_KNOWLEDGE_BASE: CriterionKnowledgeMetric[] = [
     keywords: ['action taken report', 'atr', 'feedback action', 'website url', 'public disclosure', 'hosted on website', 'iqac atr', 'academic council atr', 'feedback resolution'],
     validation_rules: ['ATR must be signed by Principal and IQAC Coordinator', 'Must show active public URL on institutional website', 'Must connect feedback points to curriculum action items'],
     scoring_weight: 10,
-    gap_conditions: 'ATR missing official Principal signature or absent public website disclosure URL',
-    recommendation_template: 'Draft institutional Action Taken Report (ATR) mapping stakeholder suggestions to concrete curriculum reforms, secure Principal sign-off, and host on public IQAC webpage.',
+    gap_conditions: 'Required supporting evidence could not be verified in the uploaded document. Official signed ATR or active institutional website URL proof not confirmed.',
+    recommendation_template: 'Verify whether an authentic approved Action Taken Report (ATR) and website disclosure proof exist. If available, upload the signed record. If unavailable, follow the institution\'s established academic documentation process.',
     mandatory: true,
     framework_version: 'NAAC Manual v2024.1 (Criterion 1 Curricular Aspects)',
     what_is_missing_default: 'Official Signed Action Taken Report (ATR) with Public Institutional Website Hosting Proof',
     why_it_matters_default: 'Metric 1.4.2 requires public institutional disclosure of feedback outcomes and official governance approval.',
-    what_to_do_default: 'Draft comprehensive ATR connecting stakeholder inputs to curriculum revisions, obtain Principal & IQAC signatures, and host on institutional website.',
-    how_to_verify_default: 'Confirm Principal/IQAC signatures on ATR and verify active public URL accessibility.'
+    what_to_do_default: 'Verify whether an authentic institutional record exists. If available, upload the original approved record. If unavailable, follow the institution\'s established academic documentation process.',
+    how_to_verify_default: 'Verify the authenticity, approval authority, dates, signatures or endorsements where applicable, and linkage to the relevant institutional record.'
   }
 ];
 
@@ -416,7 +416,7 @@ export async function executeMultiAgentPipeline(
         totalCheckpoints: 0
       },
       verifiedConflicts: [],
-      conflictStatusMessage: 'NO VERIFIED CONFLICT DETECTED (Document not relevant to Criterion 1)',
+      conflictStatusMessage: 'No explicit source-supported contradiction was identified in the analyzed evidence.',
       generatedGaps: [],
       generatedRecommendations: [],
       scoreBreakdown: emptyScore,
@@ -723,7 +723,7 @@ export async function executeMultiAgentPipeline(
   // AGENT 6: CONSISTENCY & CONFLICT AGENT
   // -------------------------------------------------------------
   const verifiedConflicts: DocumentConflict[] = [];
-  let conflictStatusMessage = 'NO VERIFIED CONFLICT DETECTED';
+  let conflictStatusMessage = 'No explicit source-supported contradiction was identified in the analyzed evidence.';
 
   // Cross-examine date stamps and syllabus versions across extracted pages
   const conflictingEvidence = evidenceMatrix.filter(e => e.evidence_status === 'CONFLICTING');
@@ -752,26 +752,30 @@ export async function executeMultiAgentPipeline(
   const seenGapFingerprints = new Set<string>();
 
   evidenceMatrix.forEach((ev, idx) => {
-    if (ev.evidence_status === 'EVIDENCE_NOT_FOUND' || ev.supporting_doc_status === 'MISSING' || ev.supporting_doc_status === 'NOT_VERIFIED' || ev.supporting_doc_status === 'PARTIAL') {
+    if (ev.evidence_status === 'EVIDENCE_NOT_FOUND' || ev.evidence_status === 'NOT_VERIFIED' || (ev.evidence_status as any) === 'DEMONSTRATION_ONLY' || ev.supporting_doc_status === 'MISSING' || ev.supporting_doc_status === 'NOT_VERIFIED' || ev.supporting_doc_status === 'PARTIAL') {
       const kbItem = CRITERION_1_KNOWLEDGE_BASE.find(k => k.metric_id === ev.metric_id);
       const fingerprint = `${ev.sub_criterion}-${ev.metric_id}`;
 
       if (!seenGapFingerprints.has(fingerprint)) {
         seenGapFingerprints.add(fingerprint);
 
-        let sev: GapSeverity = 'Medium';
-        if (ev.evidence_status === 'EVIDENCE_NOT_FOUND' && kbItem?.mandatory) {
+        let sev: GapSeverity;
+        if (isDemo) {
+          sev = 'DEMONSTRATION-ONLY EVIDENCE GAP';
+        } else if (ev.evidence_status === 'EVIDENCE_NOT_FOUND' || ev.supporting_doc_status === 'MISSING' || kbItem?.mandatory) {
           sev = 'High';
-        } else if (ev.evidence_status === 'CONFLICTING') {
-          sev = 'Critical';
-        } else if (ev.supporting_doc_status === 'NOT_VERIFIED') {
+        } else if (ev.evidence_status === 'PARTIALLY_VERIFIED' || ev.supporting_doc_status === 'PARTIAL' || ev.supporting_doc_status === 'NOT_VERIFIED') {
           sev = 'Medium';
+        } else {
+          sev = 'Low';
         }
 
         const missingArtifact = kbItem?.what_is_missing_default || kbItem?.expected_evidence || 'Official supporting artifact';
-        const whyFlagged = ev.evidence_status === 'EVIDENCE_NOT_FOUND'
-          ? `No direct supporting documentary evidence for Metric ${ev.metric_id} was found in the uploaded text.`
-          : `Claim identified for Metric ${ev.metric_id} on Page ${ev.source_page}, but underlying countersigned artifact '${missingArtifact}' was not verified.`;
+        const whyFlagged = isDemo
+          ? `Document is classified as DEMONSTRATION_ONLY. No authentic supporting artifact for Metric ${ev.metric_id} was verified in the uploaded document.`
+          : (ev.evidence_status === 'EVIDENCE_NOT_FOUND'
+              ? `Required supporting evidence could not be verified in the uploaded document for Metric ${ev.metric_id}.`
+              : `Claim identified for Metric ${ev.metric_id} on Page ${ev.source_page}, but underlying countersigned artifact '${missingArtifact}' was not verified.`);
 
         generatedGaps.push({
           id: db.gaps.length + idx + 1,
@@ -782,18 +786,18 @@ export async function executeMultiAgentPipeline(
           severity: sev,
           status: 'Open',
           missing_evidence: missingArtifact,
-          recommended_action: kbItem?.what_to_do_default || kbItem?.recommendation_template || 'Compile and verify supporting records.',
-          evidence_status: ev.evidence_status,
+          recommended_action: kbItem?.recommendation_template || kbItem?.what_to_do_default || 'Verify whether an authentic institutional record exists. If available, upload the original approved record.',
+          evidence_status: isDemo ? 'DEMONSTRATION_ONLY' : ev.evidence_status,
           claim_status: ev.claim_status,
           supporting_doc_status: ev.supporting_doc_status,
           why_flagged_reason: whyFlagged,
           priority_reason: `Addresses a critical compliance checkpoint for NAAC Sub-criterion ${ev.sub_criterion}.`,
           source_document_id: docRecord.id,
-          source_page_numbers: ev.source_page ? String(ev.source_page) : 'Not Found',
+          source_page_numbers: ev.source_page && ev.source_page > 0 ? `Page ${ev.source_page}` : 'Not Identified',
           created_at: new Date().toISOString(),
           deduplication_fingerprint: fingerprint,
           why_it_matters: kbItem?.why_it_matters_default || 'Essential for peer audit evidence validation.',
-          how_to_verify: kbItem?.how_to_verify_default || 'Verify official signatures and timestamps on records.',
+          how_to_verify: kbItem?.how_to_verify_default || 'Verify the authenticity, approval authority, dates, signatures or endorsements where applicable, and linkage to the relevant institutional record.',
           documents_to_produce: missingArtifact
         });
       }
@@ -801,7 +805,7 @@ export async function executeMultiAgentPipeline(
   });
 
   // -------------------------------------------------------------
-  // AGENT 8: ACTIONABLE RECOMMENDATION & ATR AGENT (ANSWERS 6 QUESTIONS)
+  // AGENT 8: ACTIONABLE RECOMMENDATION & ATR AGENT (ANSWERS 6 QUESTIONS + 9 CANONICAL FIELDS)
   // -------------------------------------------------------------
   const generatedRecommendations: RecommendationItem[] = [];
   const seenRecFingerprints = new Set<string>();
@@ -815,61 +819,91 @@ export async function executeMultiAgentPipeline(
 
       let role = 'HOD / Department Coordinator';
       let timeframe = 'Immediate (15 Days)';
-      let prio: 'Critical' | 'High' | 'Medium' | 'Low' = 'Medium';
+      let prio: 'Critical' | 'High' | 'Medium' | 'Low' | 'DEMONSTRATION_ONLY' = 'Medium';
 
-      if (gap.severity === 'Critical') {
+      if (isDemo) {
+        prio = 'DEMONSTRATION_ONLY';
+        role = 'IQAC / Academic Administration';
+        timeframe = 'Prior to SSR Submission';
+      } else if (gap.severity === 'Critical' || gap.evidence_status === 'CONFLICTING') {
         prio = 'Critical';
         role = 'Principal / IQAC Coordinator';
         timeframe = 'Immediate (7 Days)';
-      } else if (gap.severity === 'High') {
+      } else if (gap.severity === 'High' || gap.evidence_status === 'EVIDENCE_NOT_FOUND' || gap.evidence_status === 'NOT_VERIFIED' || gap.supporting_doc_status === 'MISSING') {
         prio = 'High';
         role = gap.metric_id?.startsWith('1.4') ? 'Principal / IQAC Coordinator' : 'HOD / Curriculum Committee';
         timeframe = 'Immediate (15 Days)';
-      } else {
+      } else if (gap.evidence_status === 'PARTIALLY_VERIFIED' || gap.supporting_doc_status === 'PARTIAL') {
         prio = 'Medium';
         role = 'Faculty / Course Coordinators';
         timeframe = 'Mid-Term (45 Days)';
+      } else {
+        prio = 'Low';
+        role = 'Department Documentation Committee';
+        timeframe = 'Long-Term (90 Days)';
       }
+
+      const observedFinding = isDemo
+        ? `No authentic supporting artifact for Metric ${gap.metric_id} was verified in the uploaded document. The source contains demonstration / synthetic data.`
+        : (gap.why_flagged_reason || `No authentic supporting artifact for Metric ${gap.metric_id} was verified in the uploaded document.`);
+
+      const evidenceGap = isDemo
+        ? 'The uploaded source does not contain a verifiable approved institutional record. Demonstration data cannot establish institutional readiness.'
+        : (gap.missing_evidence
+            ? `The uploaded source does not contain a verifiable approved record: ${gap.missing_evidence}.`
+            : 'Required supporting evidence could not be verified in the uploaded document.');
+
+      const recommendedAction = isDemo
+        ? 'Verify whether an authentic institutional record exists. If available, upload the original approved record. If unavailable, follow the institution\'s established academic governance and documentation process.'
+        : (kbItem?.recommendation_template || gap.recommended_action || 'Verify whether an authentic institutional record exists. If available, upload the original approved record.');
+
+      const targetEvidence = gap.missing_evidence || kbItem?.expected_evidence || 'Approved institutional record';
+      const verificationStep = kbItem?.how_to_verify_default || 'Verify the authenticity, approval authority, dates, signatures or endorsements where applicable, and linkage to the relevant institutional record.';
 
       generatedRecommendations.push({
         id: db.recommendations.length + idx + 1,
         sub_criterion: gap.sub_criterion,
         metric_id: gap.metric_id,
         category: 'Criterion 1 Governance',
-        title: `${gap.evidence_status === 'EVIDENCE_NOT_FOUND' ? 'Compile & Publish' : 'Verify & Archive'} ${kbItem?.title || gap.title} (Metric ${gap.metric_id})`,
-        recommendation_text: gap.recommended_action || kbItem?.what_to_do_default || 'Compile and certify supporting records.',
+        title: `${gap.evidence_status === 'EVIDENCE_NOT_FOUND' ? 'Verify & Archive' : 'Validate Artifact for'} ${kbItem?.title || gap.title} (Metric ${gap.metric_id})`,
+        recommendation_text: recommendedAction,
         priority: prio,
-        evidence_status: gap.evidence_status,
+        evidence_status: isDemo ? 'DEMONSTRATION_ONLY' : gap.evidence_status,
         claim_status: gap.claim_status,
         supporting_doc_status: gap.supporting_doc_status,
-        required_document: gap.missing_evidence,
+        required_document: targetEvidence,
         responsible_role: role,
         timeframe,
-        why_flagged_reason: gap.why_flagged_reason,
+        why_flagged_reason: observedFinding,
         priority_reason: gap.priority_reason,
         source_document_id: docRecord.id,
-        source_page_numbers: gap.source_page_numbers,
+        source_page_numbers: gap.source_page_numbers && gap.source_page_numbers !== 'Not Found' ? gap.source_page_numbers : 'Source Page: Not Identified',
         shap_explanation_json: {
           impact_weight: prio === 'Critical' ? 0.35 : prio === 'High' ? 0.25 : 0.15,
           metric_scope: gap.metric_id
         },
         action_items: [
-          `1. WHAT: ${kbItem?.what_is_missing_default || gap.missing_evidence}`,
+          `1. WHAT: ${targetEvidence}`,
           `2. WHY: ${kbItem?.why_it_matters_default || gap.why_it_matters}`,
-          `3. ACTION: ${kbItem?.what_to_do_default || gap.recommended_action}`,
-          `4. ARTIFACT: ${gap.missing_evidence}`,
-          `5. VERIFICATION: ${kbItem?.how_to_verify_default || gap.how_to_verify}`,
+          `3. ACTION: ${recommendedAction}`,
+          `4. ARTIFACT: ${targetEvidence}`,
+          `5. VERIFICATION: ${verificationStep}`,
           `6. METRIC: NAAC Criterion 1 (Metric ${gap.metric_id})`
         ],
         created_at: new Date().toISOString(),
         deduplication_fingerprint: recFingerprint,
-        what_is_missing: kbItem?.what_is_missing_default || gap.missing_evidence,
+        what_is_missing: targetEvidence,
         why_it_matters: kbItem?.why_it_matters_default || gap.why_it_matters,
-        what_institution_should_do: kbItem?.what_to_do_default || gap.recommended_action,
-        expected_document: gap.missing_evidence,
-        how_to_verify: kbItem?.how_to_verify_default || gap.how_to_verify,
+        what_institution_should_do: recommendedAction,
+        expected_document: targetEvidence,
+        how_to_verify: verificationStep,
         supported_metric: `Metric ${gap.metric_id}`,
-        verification_requirement: kbItem?.how_to_verify_default
+        verification_requirement: verificationStep,
+        observed_finding: observedFinding,
+        evidence_gap: evidenceGap,
+        recommended_action: recommendedAction,
+        target_evidence: targetEvidence,
+        verification_step: verificationStep
       });
     }
   });
@@ -1146,7 +1180,7 @@ export async function executeMultiAgentPipeline(
       evidence: e.claim,
       status: e.evidence_status,
       strength: e.evidence_strength,
-      pages: e.source_page ? `Page ${e.source_page}` : 'Not Found',
+      pages: e.source_page && e.source_page > 0 ? `Page ${e.source_page}` : 'Source Page: Not Identified',
       verification: e.human_verification_status
     })),
     metricAnalysis: evidenceMatrix.map(e => {
@@ -1158,12 +1192,12 @@ export async function executeMultiAgentPipeline(
         metricName: e.metric_name,
         requirement: e.requirement_description,
         evidenceFound: e.evidence_snippet,
-        evidencePages: e.source_page ? `Page ${e.source_page}` : 'Not Found',
+        evidencePages: e.source_page && e.source_page > 0 ? `Page ${e.source_page}` : 'Source Page: Not Identified',
         evidenceStrength: e.evidence_strength,
         verificationStatus: e.human_verification_status,
         gap: gap?.description || 'None',
         impact: gap?.priority_reason || 'Neutral',
-        recommendation: rec?.recommendation_text || (e.evidence_status === 'VERIFIED' ? 'Maintain certified archive in institutional repository.' : 'Verify whether the required artifact exists. If available, upload it for verification.')
+        recommendation: rec?.recommendation_text || (e.evidence_status === 'VERIFIED' ? 'Maintain certified archive in institutional repository.' : 'Verify whether an authentic institutional record exists. If available, upload the original approved record.')
       };
     }),
     verifiedConflicts,
