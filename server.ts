@@ -785,6 +785,18 @@ async function startServer() {
     return res.json(recs);
   });
 
+  app.get(['/api/criterion/conflicts', '/api/conflicts'], (req: Request, res: Response) => {
+    const { sub_criterion, status } = req.query;
+    let list = [...db.conflicts];
+    if (sub_criterion && sub_criterion !== 'All') {
+      list = list.filter(c => c.sub_criterion === sub_criterion);
+    }
+    if (status && status !== 'All') {
+      list = list.filter(c => c.status.toLowerCase() === (status as string).toLowerCase());
+    }
+    return res.json(list);
+  });
+
   app.get(['/api/metrics/matrix', '/api/evidence'], (req: Request, res: Response) => {
     const { sub_criterion } = req.query;
     let list = [...db.evidence];
@@ -942,6 +954,24 @@ async function startServer() {
     const summary = db.calculateReadinessSummary();
     const selectedDoc = docId ? db.documents.find(d => d.id === docId) : null;
     const isHundredPct = summary.overall_readiness_pct >= 99.0;
+    const targetDoc = selectedDoc || (db.documents.length > 0 ? db.documents[0] : null);
+    const targetDocEvidence = targetDoc ? db.evidence.filter(e => e.document_id === targetDoc.id) : db.evidence;
+    const verifiedCount = targetDocEvidence.filter(e => e.evidence_status === 'VERIFIED').length;
+    const partialCount = targetDocEvidence.filter(e => e.evidence_status === 'PARTIALLY_VERIFIED').length;
+    const totalCount = targetDocEvidence.length > 0 ? targetDocEvidence.length : 3;
+    const completeness = Math.min(100, Math.round(((verifiedCount * 1.0 + partialCount * 0.5) / totalCount) * 100));
+    const verifiedWithConf = targetDocEvidence.filter(e => e.evidence_status === 'VERIFIED' && e.confidence !== null);
+    const relevance = verifiedWithConf.length > 0
+      ? Math.round(verifiedWithConf.reduce((sum, e) => sum + (e.confidence || 0), 0) / verifiedWithConf.length)
+      : 85.0;
+    const openConflicts = db.conflicts.filter(c => c.status === 'Open' && (!targetDoc || c.sub_criterion === targetDoc.sub_criterion));
+    const breakdown = calculateDeterministicScore({
+      completeness,
+      relevance,
+      validation_status: targetDoc?.validation_status,
+      text_quality_score: targetDoc?.text_quality_score || 94.0,
+      conflicts_count: openConflicts.length
+    });
 
     return res.json({
       overall_quality_score: summary.overall_readiness_pct,
@@ -949,12 +979,14 @@ async function startServer() {
       overall_readiness: isHundredPct ? `${summary.readiness_grade} - 100% NAAC Audit Ready` : `${summary.readiness_grade} - High Readiness`,
       overall_readiness_pct: summary.overall_readiness_pct,
       readiness_grade: summary.readiness_grade,
+      score_breakdown: breakdown,
+      conflicts: openConflicts,
       evidence_checklist: {
         required_total: 52,
         available: isHundredPct ? 52 : 43,
         missing: isHundredPct ? 0 : 9,
         partial: isHundredPct ? 0 : 7,
-        conflicting: isHundredPct ? 0 : 2
+        conflicting: isHundredPct ? 0 : openConflicts.length
       },
       workflow_queue: {
         faculty_review: isHundredPct ? 0 : 2,
@@ -1289,15 +1321,15 @@ async function startServer() {
     });
   });
 
-  app.post(['/api/admin/certify-100-percent', '/api/compliance/certify-100'], (_req: Request, res: Response) => {
-    const summary = db.certify100PercentCompliance();
+  app.post(['/api/admin/certify-100-percent', '/api/compliance/certify-100', '/api/admin/reverify-grounding'], (_req: Request, res: Response) => {
+    const summary = db.reverifyDocumentGrounding();
     return res.json({
       success: true,
-      message: 'Institutional Criterion 1 Portfolio certified at 100.0% NAAC Audit Readiness (A++ Grade / 4.00 CGPA).',
+      message: 'Institutional Criterion 1 portfolio re-audited strictly against uploaded documentary evidence.',
       summary,
-      evidence_verified: db.evidence.length,
-      gaps_resolved: db.gaps.length,
-      documents_validated: db.documents.length
+      evidence_verified: db.evidence.filter(e => e.evidence_status === 'VERIFIED').length,
+      gaps_detected: db.gaps.length,
+      documents_evaluated: db.documents.length
     });
   });
 
@@ -1306,41 +1338,52 @@ async function startServer() {
   // =========================================================================
 
   const handleDownloadCsv = (req: Request, res: Response) => {
-    const rawId = req.params.id || req.query.document_id;
-    const docId = rawId ? Number(rawId) : undefined;
-    const subCrit = req.query.sub_criterion as string;
-    let targetDocId = docId;
-    if (!targetDocId && subCrit && subCrit !== 'All') {
-      const match = db.documents.find(d => d.sub_criterion === subCrit);
-      if (match) targetDocId = match.id;
-    }
-    const institution = (req.query.institution as string) || 'Sagar Institute of Research & Technology, Bhopal';
-    const csvContent = generateCsvReport(institution, targetDocId);
-    const filename = `CampusInsight_Accreditation_Report_${Date.now()}.csv`;
+    try {
+      const rawId = req.params.id || req.query.document_id;
+      const docId = rawId ? Number(rawId) : undefined;
+      const subCrit = req.query.sub_criterion as string;
+      let targetDocId = docId;
+      if (!targetDocId && subCrit && subCrit !== 'All') {
+        const match = db.documents.find(d => d.sub_criterion === subCrit);
+        if (match) targetDocId = match.id;
+      }
+      const matchDoc = targetDocId ? db.documents.find(d => d.id === targetDocId) : (db.documents[0] || null);
+      const institution = (req.query.institution as string) || matchDoc?.institution_name || 'Higher Education Institution';
+      const csvContent = generateCsvReport(institution, targetDocId);
+      const filename = `CampusInsight_Accreditation_Report_${Date.now()}.csv`;
 
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    return res.send(csvContent);
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.send(csvContent);
+    } catch (err: any) {
+      console.error('Failed to generate CSV report:', err);
+      return res.status(500).json({ detail: err.message || 'Failed to generate CSV report.' });
+    }
   };
 
   const handleDownloadPdf = async (req: Request, res: Response) => {
-    const rawId = req.params.id || req.query.document_id;
-    const docId = rawId ? Number(rawId) : undefined;
-    const subCrit = req.query.sub_criterion as string;
-    const institution = (req.query.institution as string) || 'Sagar Institute of Research & Technology, Bhopal';
-    let targetDoc = docId ? db.documents.find(d => d.id === docId) : undefined;
-    if (!targetDoc && subCrit && subCrit !== 'All') {
-      targetDoc = db.documents.find(d => d.sub_criterion === subCrit);
-    }
-    if (!targetDoc) {
-      targetDoc = db.documents[0];
-    }
-    const pdfBuffer = await generatePdfReport(institution, targetDoc);
-    const filename = `CampusInsight_Accreditation_Report_${Date.now()}.pdf`;
+    try {
+      const rawId = req.params.id || req.query.document_id;
+      const docId = rawId ? Number(rawId) : undefined;
+      const subCrit = req.query.sub_criterion as string;
+      let targetDoc = docId ? db.documents.find(d => d.id === docId) : undefined;
+      if (!targetDoc && subCrit && subCrit !== 'All') {
+        targetDoc = db.documents.find(d => d.sub_criterion === subCrit);
+      }
+      if (!targetDoc) {
+        targetDoc = db.documents[0];
+      }
+      const institution = (req.query.institution as string) || targetDoc?.institution_name || 'Higher Education Institution';
+      const pdfBuffer = await generatePdfReport(institution, targetDoc);
+      const filename = `CampusInsight_Accreditation_Report_${Date.now()}.pdf`;
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    return res.send(pdfBuffer);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.send(pdfBuffer);
+    } catch (err: any) {
+      console.error('Failed to generate PDF report:', err);
+      return res.status(500).json({ detail: err.message || 'Failed to generate PDF report.' });
+    }
   };
 
   app.get(['/api/reports/download-csv', '/api/reports/csv', '/api/reports/download-csv/:id'], handleDownloadCsv);

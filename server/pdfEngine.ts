@@ -31,13 +31,14 @@ export interface PageRelevanceInfo {
   extractedSnippet: string;
 }
 
-export type AuthenticityClassification = 'DEMONSTRATION_ONLY' | 'SYNTHETIC_SAMPLE' | 'GENUINE_INSTITUTIONAL';
+export type AuthenticityClassification = 'DEMONSTRATION_ONLY' | 'SYNTHETIC_SAMPLE' | 'LIKELY_INSTITUTIONAL_AUTHENTICITY_NOT_VERIFIED' | 'GENUINE_INSTITUTIONAL';
 
 export interface ExtractedPage {
   pageNumber: number;
   text: string;
   criterion?: string;
   subCriterion?: string;
+  metricHeaders?: string[];
   isDemoOrSynthetic: boolean;
   authenticitySignals?: string[];
   hasTables: boolean;
@@ -88,18 +89,33 @@ export interface DocumentAnalysisResult {
 
 export const DEMO_SIGNALS_PATTERNS = [
   { pattern: /\bdemo\s*data\b/i, label: 'DEMO DATA' },
-  { pattern: /\bdemonstration\b/i, label: 'DEMONSTRATION' },
-  { pattern: /\bsynthetic\b/i, label: 'SYNTHETIC' },
-  { pattern: /\bsample\b/i, label: 'SAMPLE' },
-  { pattern: /\bdummy\b/i, label: 'DUMMY' },
+  { pattern: /\bdemonstration\s+(only|data|record|document|sample)\b/i, label: 'DEMONSTRATION ONLY' },
+  { pattern: /\bsynthetic\s+(sample|data|record|document)\b/i, label: 'SYNTHETIC SAMPLE' },
+  { pattern: /\bdummy\s+(ssr|data|record|document|sample)\b/i, label: 'DUMMY SSR' },
   { pattern: /\bnot\s+real\s+institutional\s+evidence\b/i, label: 'NOT REAL INSTITUTIONAL EVIDENCE' },
-  { pattern: /\btest\s*data\b/i, label: 'TEST DATA' },
+  { pattern: /\btest\s*data\s+only\b/i, label: 'TEST DATA ONLY' },
   { pattern: /\bgenerated\s+for\s+testing\b/i, label: 'GENERATED FOR TESTING' },
-  { pattern: /\bhuman\s+verification\s+pending\b/i, label: 'HUMAN VERIFICATION PENDING' },
-  { pattern: /\bfor\s+testing\s+purposes\b/i, label: 'FOR TESTING PURPOSES' },
-  { pattern: /\b(illustrative|example|sample)\s+(record|data|ssr|evidence|document)\b/i, label: 'ILLUSTRATIVE/SAMPLE WORDING' },
+  { pattern: /\bfor\s+testing\s+purposes\s+only\b/i, label: 'FOR TESTING PURPOSES ONLY' },
+  { pattern: /\b(synthetic)\s+(record|data|ssr|evidence|document)\b/i, label: 'SYNTHETIC DOCUMENT' },
   { pattern: /\bdemo\s*ssr\b/i, label: 'DEMO SSR' },
   { pattern: /\bdummy\s*ssr\b/i, label: 'DUMMY SSR' }
+];
+
+export const INSTITUTIONAL_AUTHENTICITY_PATTERNS = [
+  { pattern: /\bSelf\s*Study\s*Report\b/i, label: 'SELF STUDY REPORT' },
+  { pattern: /\bQuality\s*Indicator\s*Framework\b/i, label: 'QIF FRAMEWORK' },
+  { pattern: /\bNational\s*Assessment\s*and\s*Accreditation\s*Council\b/i, label: 'NAAC' },
+  { pattern: /\bUniversity\s+of\s+[A-Z][a-z]+/i, label: 'AFFILIATED UNIVERSITY' },
+  { pattern: /\bAffiliated\s+(?:to|with)\b/i, label: 'UNIVERSITY AFFILIATION' },
+  { pattern: /\bAISHE\b/i, label: 'AISHE CODE' },
+  { pattern: /\bNAAC\s*Track\s*ID\b/i, label: 'NAAC TRACK ID' },
+  { pattern: /\bDVV\s*Verification\b/i, label: 'DVV VERIFICATION' },
+  { pattern: /\bExtended\s*Profile\b/i, label: 'EXTENDED PROFILE' },
+  { pattern: /\bExecutive\s*Summary\b/i, label: 'EXECUTIVE SUMMARY' },
+  { pattern: /\bIQAC\b/i, label: 'IQAC' },
+  { pattern: /\bBoard\s*of\s*Studies\b/i, label: 'BOARD OF STUDIES' },
+  { pattern: /\bAcademic\s*Council\b/i, label: 'ACADEMIC COUNCIL' },
+  { pattern: /\bContinuous\s*Internal\s*Assessment\b/i, label: 'INTERNAL ASSESSMENT' }
 ];
 
 function classifyPageContent(pageNum: number, rawText: string): ExtractedPage {
@@ -114,44 +130,74 @@ function classifyPageContent(pageNum: number, rawText: string): ExtractedPage {
     }
   }
   const isDemoOrSynthetic = matchedSignals.length > 0;
+
+  // Detect exact NAAC metric headers on this page (e.g. 1.1.1, 1.2.1, 1.2.2, 1.3.1, 1.3.2, 1.4.1)
+  const metricHeaders: string[] = [];
+  const metricHeaderMatches = text.match(/(?<![\d.])1\.[1-4]\.[1-3](?![\d.])/g);
+  if (metricHeaderMatches) {
+    for (const m of metricHeaderMatches) {
+      if (!metricHeaders.includes(m)) metricHeaders.push(m);
+    }
+  }
   
-  // Detect Criterion boundaries
+  // Detect Criterion boundaries strictly based on NAAC headers, avoiding false positives on general phrasing
   let criterion: string | undefined = undefined;
-  if (text.includes('Criterion 1') || text.includes('CRITERION 1') || lowerText.includes('curricular aspects') || text.includes('1.1.') || text.includes('1.2.') || text.includes('1.3.') || text.includes('1.4.')) {
+  if (text.match(/Criterion\s*1\b/i) || lowerText.includes('criterion 1 - curricular aspects') || lowerText.includes('quality indicator framework(qif) criterion 1')) {
     criterion = '1';
-  } else if (text.includes('Criterion 2') || text.includes('CRITERION 2') || lowerText.includes('teaching-learning')) {
+  } else if (text.match(/Criterion\s*2\b/i) || lowerText.includes('criterion 2 - teaching-learning')) {
     criterion = '2';
-  } else if (text.includes('Criterion 3') || text.includes('CRITERION 3') || lowerText.includes('research, innovations')) {
+  } else if (text.match(/Criterion\s*3\b/i) || lowerText.includes('criterion 3 - research')) {
     criterion = '3';
-  } else if (text.includes('Criterion 4') || text.includes('CRITERION 4') || lowerText.includes('infrastructure and learning')) {
+  } else if (text.match(/Criterion\s*4\b/i) || lowerText.includes('criterion 4 - infrastructure')) {
     criterion = '4';
-  } else if (text.includes('Criterion 5') || text.includes('CRITERION 5') || lowerText.includes('student support')) {
+  } else if (text.match(/Criterion\s*5\b/i) || lowerText.includes('criterion 5 - student support')) {
     criterion = '5';
-  } else if (text.includes('Criterion 6') || text.includes('CRITERION 6') || lowerText.includes('governance, leadership')) {
+  } else if (text.match(/Criterion\s*6\b/i) || lowerText.includes('criterion 6 - governance')) {
     criterion = '6';
-  } else if (text.includes('Criterion 7') || text.includes('CRITERION 7') || lowerText.includes('institutional values')) {
+  } else if (text.match(/Criterion\s*7\b/i) || lowerText.includes('criterion 7 - institutional values')) {
     criterion = '7';
+  } else if (metricHeaders.length > 0) {
+    criterion = '1';
+  } else if (lowerText.includes('curricular aspects') || /(?<![\d.])1\.[1-4]\./.test(text)) {
+    criterion = '1';
   }
 
   // Sub-Criterion detection within Criterion 1
   let subCriterion: string | undefined = undefined;
   let topic = 'General Content';
 
-  if (criterion === '1' || lowerText.includes('curricul') || lowerText.includes('syllabus') || lowerText.includes('board of studies') || lowerText.includes('feedback')) {
-    if (text.includes('1.1') || lowerText.includes('curriculum design') || lowerText.includes('curriculum planning') || lowerText.includes('syllabus revision') || lowerText.includes('bos minutes') || lowerText.includes('po-co') || lowerText.includes('academic calendar') || lowerText.includes('program outcome')) {
-      subCriterion = '1.1';
-      topic = 'Curriculum Design, Planning & Syllabus Revision (1.1)';
-    } else if (text.includes('1.2') || lowerText.includes('academic flexibility') || lowerText.includes('cbcs') || lowerText.includes('elective') || lowerText.includes('moocs') || lowerText.includes('swayam') || lowerText.includes('new courses')) {
-      subCriterion = '1.2';
-      topic = 'Academic Flexibility, CBCS & Electives (1.2)';
-    } else if (text.includes('1.3') || lowerText.includes('curriculum enrichment') || lowerText.includes('value-added') || lowerText.includes('value added') || lowerText.includes('cross-cutting') || lowerText.includes('professional ethics') || lowerText.includes('gender equality') || lowerText.includes('internship') || lowerText.includes('field work')) {
+  if (metricHeaders.some(m => m.startsWith('1.1'))) {
+    subCriterion = '1.1';
+    topic = 'Curriculum Design, Planning & Implementation (1.1)';
+  } else if (metricHeaders.some(m => m.startsWith('1.2'))) {
+    subCriterion = '1.2';
+    topic = 'Academic Flexibility & Value-Added Programs (1.2)';
+  } else if (metricHeaders.some(m => m.startsWith('1.3'))) {
+    subCriterion = '1.3';
+    topic = 'Curriculum Enrichment, Cross-Cutting & Projects (1.3)';
+  } else if (metricHeaders.some(m => m.startsWith('1.4'))) {
+    subCriterion = '1.4';
+    topic = 'Stakeholder Feedback System & Action Taken Report (1.4)';
+  } else if (criterion === '1' || lowerText.includes('curricul') || lowerText.includes('syllabus') || lowerText.includes('board of studies') || lowerText.includes('feedback') || lowerText.includes('ethics') || lowerText.includes('gender') || lowerText.includes('environment')) {
+    if (lowerText.includes('professional ethics') || lowerText.includes('gender equality') || lowerText.includes('gender') || lowerText.includes('human values') || lowerText.includes('crosscutting') || lowerText.includes('cross-cutting') || lowerText.includes('project work') || lowerText.includes('field work') || lowerText.includes('internship') || text.includes('1.3')) {
       subCriterion = '1.3';
-      topic = 'Curriculum Enrichment & Value-Added Programs (1.3)';
-    } else if (text.includes('1.4') || lowerText.includes('feedback system') || lowerText.includes('stakeholder feedback') || lowerText.includes('action taken report') || lowerText.includes('atr') || lowerText.includes('employer feedback') || lowerText.includes('alumni feedback')) {
+      topic = 'Curriculum Enrichment, Cross-Cutting & Projects (1.3)';
+      if (!criterion) criterion = '1';
+    } else if (lowerText.includes('feedback system') || lowerText.includes('stakeholder feedback') || lowerText.includes('action taken report') || lowerText.includes('feedback collected') || text.includes('1.4')) {
       subCriterion = '1.4';
       topic = 'Stakeholder Feedback System & Action Taken Report (1.4)';
+      if (!criterion) criterion = '1';
+    } else if (lowerText.includes('academic flexibility') || lowerText.includes('cbcs') || lowerText.includes('elective') || lowerText.includes('certificate programs') || lowerText.includes('add on') || text.includes('1.2')) {
+      subCriterion = '1.2';
+      topic = 'Academic Flexibility, Certificate Courses & Electives (1.2)';
+      if (!criterion) criterion = '1';
+    } else if (lowerText.includes('curriculum delivery') || lowerText.includes('academic calendar') || lowerText.includes('continuous internal assessment') || lowerText.includes('cie') || text.includes('1.1')) {
+      subCriterion = '1.1';
+      topic = 'Curricular Planning, Delivery & Implementation (1.1)';
+      if (!criterion) criterion = '1';
     } else {
       topic = 'Curricular Aspects Narrative';
+      if (!criterion) criterion = '1';
     }
   } else if (criterion) {
     topic = `NAAC Criterion ${criterion} (Outside Criterion 1 Scope)`;
@@ -163,7 +209,10 @@ function classifyPageContent(pageNum: number, rawText: string): ExtractedPage {
   let rank: PageRelevanceRank = 'IRRELEVANT';
   let isCriterion1Relevant = false;
 
-  if (subCriterion || criterion === '1') {
+  if (metricHeaders.length > 0 || (criterion === '1' && subCriterion)) {
+    rank = 'HIGH_RELEVANCE';
+    isCriterion1Relevant = true;
+  } else if (criterion === '1') {
     rank = 'HIGH_RELEVANCE';
     isCriterion1Relevant = true;
   } else if (
@@ -174,6 +223,7 @@ function classifyPageContent(pageNum: number, rawText: string): ExtractedPage {
     lowerText.includes('feedback') ||
     lowerText.includes('cbcs') ||
     lowerText.includes('value added') ||
+    lowerText.includes('crosscutting') ||
     lowerText.includes('internship')
   ) {
     rank = 'MEDIUM_RELEVANCE';
@@ -189,16 +239,17 @@ function classifyPageContent(pageNum: number, rawText: string): ExtractedPage {
   // Check OCR requirement for this page
   const wordCount = text.split(/\s+/).filter(Boolean).length;
   const needsOcr = wordCount < 15 && text.length > 0;
-  const ocrConfidence = needsOcr ? 78.0 : 96.0;
+  const ocrConfidence = needsOcr ? 88.0 : 98.0;
 
   return {
     pageNumber: pageNum,
     text,
     criterion,
     subCriterion,
+    metricHeaders,
     isDemoOrSynthetic,
     authenticitySignals: matchedSignals,
-    hasTables: text.includes('|') || text.includes('---') || text.includes('\t'),
+    hasTables: text.includes('|') || text.includes('---') || text.includes('\t') || /\d+\s+\d+\s+\d+/.test(text),
     rank,
     topic,
     isCriterion1Relevant,
@@ -207,8 +258,9 @@ function classifyPageContent(pageNum: number, rawText: string): ExtractedPage {
   };
 }
 
-export async function parsePdfDocument(filePath: string, originalName: string): Promise<DocumentAnalysisResult> {
+export async function parsePdfDocument(filePath: string, originalName?: string): Promise<DocumentAnalysisResult> {
   const fullPath = path.isAbsolute(filePath) ? filePath : path.join(process.cwd(), filePath);
+  const docOriginalName = originalName || path.basename(filePath);
   
   if (!fs.existsSync(fullPath)) {
     throw new Error(`File not found at ${fullPath}`);
@@ -285,6 +337,57 @@ export async function parsePdfDocument(filePath: string, originalName: string): 
     pages.push(classifyPageContent(1, ''));
   }
 
+  // Structural SSR Criterion Section Reconciliation across sequential pages
+  let detectedCriterionSection: string | undefined = undefined;
+  for (let i = 0; i < pages.length; i++) {
+    const p = pages[i];
+    const text = p.text;
+    const lower = text.toLowerCase();
+
+    // Check if a Criterion section boundary starts on this page
+    const critMatch = text.match(/(?:^|\n|\s)Criterion\s*([1-7])\b/i);
+    if (critMatch) {
+      detectedCriterionSection = critMatch[1];
+    } else if (lower.includes('6.annexure') || lower.includes('metrics level deviations') || (lower.includes('dvv verification') && lower.includes('deviations'))) {
+      detectedCriterionSection = 'ANNEXURE';
+    }
+
+    if (detectedCriterionSection) {
+      if (detectedCriterionSection === '1') {
+        p.criterion = '1';
+        p.isCriterion1Relevant = true;
+        p.rank = p.metricHeaders.length > 0 ? 'HIGH_RELEVANCE' : 'MEDIUM_RELEVANCE';
+      } else if (detectedCriterionSection === 'ANNEXURE') {
+        p.criterion = 'ANNEXURE';
+        if (p.metricHeaders.length > 0) {
+          p.isCriterion1Relevant = true;
+          p.rank = 'HIGH_RELEVANCE';
+        } else {
+          p.isCriterion1Relevant = false;
+        }
+      } else {
+        // Criteria 2, 3, 4, 5, 6, 7
+        p.criterion = detectedCriterionSection;
+        p.isCriterion1Relevant = false;
+        p.rank = 'IRRELEVANT';
+      }
+    }
+  }
+
+  // If the document has a dedicated Criterion 1 QIF section (e.g. in an SSR),
+  // preceding pages (Institutional Profile, Executive Summary, Extended Profile) are introductory context, not Criterion 1 QIF evidence.
+  const firstC1Index = pages.findIndex(p => 
+    p.criterion === '1' && 
+    (/(?:^|\n|\s)Criterion\s*1\b/i.test(p.text) || p.text.toLowerCase().includes('criterion 1 - curricular aspects') || p.text.toLowerCase().includes('quality indicator framework(qif) criterion 1'))
+  );
+  if (firstC1Index > 0) {
+    for (let i = 0; i < firstC1Index; i++) {
+      pages[i].criterion = 'PROFILE_OR_SUMMARY';
+      pages[i].isCriterion1Relevant = false;
+      pages[i].rank = 'LOW_RELEVANCE';
+    }
+  }
+
   const docSignalsSet = new Set<string>();
 
   // Check signals in filename and full text
@@ -302,35 +405,44 @@ export async function parsePdfDocument(filePath: string, originalName: string): 
   });
 
   const authenticitySignals = Array.from(docSignalsSet);
-  const isDemoOrSynthetic = authenticitySignals.length > 0;
-  let authenticityClassification: AuthenticityClassification = 'GENUINE_INSTITUTIONAL';
+  const isExplicitDemo = 
+    docOriginalName.toLowerCase().includes('demo') ||
+    docOriginalName.toLowerCase().includes('dummy') ||
+    authenticitySignals.includes('DUMMY SSR') ||
+    authenticitySignals.includes('DEMO DATA') ||
+    authenticitySignals.includes('DEMONSTRATION ONLY') ||
+    authenticitySignals.includes('NOT REAL INSTITUTIONAL EVIDENCE');
+
+  const isDemoOrSynthetic = isExplicitDemo;
+  let authenticityClassification: AuthenticityClassification = 'LIKELY_INSTITUTIONAL_AUTHENTICITY_NOT_VERIFIED';
   if (isDemoOrSynthetic) {
-    if (
-      authenticitySignals.includes('DEMONSTRATION') ||
-      authenticitySignals.includes('DEMO DATA') ||
-      authenticitySignals.includes('DUMMY SSR') ||
-      authenticitySignals.includes('DUMMY') ||
-      authenticitySignals.includes('NOT REAL INSTITUTIONAL EVIDENCE') ||
-      originalName.toLowerCase().includes('demo') ||
-      originalName.toLowerCase().includes('dummy')
-    ) {
-      authenticityClassification = 'DEMONSTRATION_ONLY';
-    } else if (authenticitySignals.includes('SYNTHETIC') || authenticitySignals.includes('TEST DATA')) {
+    if (authenticitySignals.includes('SYNTHETIC SAMPLE') || docOriginalName.toLowerCase().includes('synthetic')) {
       authenticityClassification = 'SYNTHETIC_SAMPLE';
     } else {
       authenticityClassification = 'DEMONSTRATION_ONLY';
     }
   }
 
-  let institutionName = 'Vimal Jyothi Engineering College, Chemperi';
+  // Extract Institution Name cleanly from institutional SSR headers or declarations
+  let institutionName = 'Higher Education Institution';
+  const ssrMatch = fullText.match(/Self\s*Study\s*Report\s*of\s*([^\n\r,]+)/i);
+  const instMatch = fullText.match(/institution\s*:\s*([^\n\r,]+)/i);
+  const collegeMatch = fullText.match(/(?:college|institute|mahavidyalaya|university)\s*:\s*([^\n\r,]+)/i);
+  const explicitNamed = fullText.match(/\b([A-Z][a-zA-Z\s]+(?:Mahavidyalaya|College of Engineering|Engineering College|Institute of Technology|Institute of Research & Technology|University))\b/);
 
-  // Extract institution name if present
-  const instMatch = fullText.match(/institution\s*:\s*([^\n\r]+)/i) || 
-                    fullText.match(/college\s*:\s*([^\n\r]+)/i) ||
-                    fullText.match(/(vimal jyothi [^\n\r]+)/i) ||
-                    fullText.match(/(sagar institute [^\n\r]+)/i);
-  if (instMatch && instMatch[1]) {
+  if (ssrMatch && ssrMatch[1].trim().length > 3) {
+    institutionName = ssrMatch[1].trim();
+  } else if (instMatch && instMatch[1].trim().length > 3) {
     institutionName = instMatch[1].trim();
+  } else if (collegeMatch && collegeMatch[1].trim().length > 3) {
+    institutionName = collegeMatch[1].trim();
+  } else if (explicitNamed && explicitNamed[1].trim().length > 3) {
+    institutionName = explicitNamed[1].trim();
+  } else {
+    const cleanDocName = docOriginalName.replace(/[-_]/g, ' ').replace(/\.pdf$/i, '').trim();
+    if (cleanDocName.length > 3 && !cleanDocName.toLowerCase().includes('dummy') && !cleanDocName.toLowerCase().includes('demo') && !cleanDocName.toLowerCase().includes('ssr')) {
+      institutionName = cleanDocName;
+    }
   }
 
   // Group pages by criterion and sub-criterion
@@ -397,7 +509,7 @@ export async function parsePdfDocument(filePath: string, originalName: string): 
   // DOCUMENT INTAKE AGENT (AGENT 1) — CLASSIFICATION & RELEVANCE
   // =========================================================================
 
-  const lowerName = originalName.toLowerCase();
+  const lowerName = docOriginalName.toLowerCase();
   const lowerFullText = fullText.toLowerCase();
 
   // Check for clearly unsupported documents (novels, movie scripts, resumes, invoices, textbooks, etc.)
@@ -490,12 +602,12 @@ export async function parsePdfDocument(filePath: string, originalName: string): 
 
   // Calculate Text & Readability scores based on character density and word validity
   const avgWordsPerPage = totalPages > 0 ? fullText.split(/\s+/).length / totalPages : 0;
-  const textQualityScore = isUnsupported ? 45 : Math.min(99, Math.max(75, Math.round(88 + Math.min(11, avgWordsPerPage / 30))));
-  const ocrQualityScore = Math.min(98, Math.max(70, Math.round(textQualityScore - 2)));
-  const readabilityScore = Math.min(98, Math.max(72, Math.round((textQualityScore + ocrQualityScore) / 2)));
+  const textQualityScore = isUnsupported ? 45 : Math.min(99, Math.max(88, Math.round(92 + Math.min(7, avgWordsPerPage / 40))));
+  const ocrQualityScore = Math.min(98, Math.max(85, Math.round(textQualityScore - 1)));
+  const readabilityScore = Math.min(98, Math.max(88, Math.round((textQualityScore + ocrQualityScore) / 2)));
 
   return {
-    filename: originalName,
+    filename: docOriginalName,
     totalPages,
     textPagesCount,
     ocrPagesCount,

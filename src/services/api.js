@@ -105,6 +105,7 @@ export const criterionAPI = {
   getGaps: (subCriterion = 'All') => api.get(`/criterion/gaps?sub_criterion=${subCriterion}`),
   updateGapStatus: (gapId, status) => api.patch(`/criterion/gaps/${gapId}/status`, { status }),
   getRecommendations: (subCriterion = 'All') => api.get(`/criterion/recommendations?sub_criterion=${subCriterion}`),
+  getConflicts: (subCriterion = 'All', status = 'Open') => api.get(`/criterion/conflicts?sub_criterion=${subCriterion}&status=${status}`),
   getEvidence: (subCriterion = 'All') => api.get(`/metrics/matrix?sub_criterion=${subCriterion}`),
   getEvidenceMatrix: (subCriterion = 'All') => api.get(`/metrics/matrix?sub_criterion=${subCriterion}`),
   reanalyze: () => api.post('/criterion/reanalyze'),

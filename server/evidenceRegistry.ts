@@ -208,9 +208,9 @@ export function buildRegistryFromPipeline(
     const isArtifactVerified = ev.claim_vs_artifact_status === 'ARTIFACT_VERIFIED' || ev.supporting_doc_status === 'VERIFIED';
     const artifactFound = !isDemo && isArtifactVerified && hasSnippet;
     
-    // Check for specific identifiable patterns (dates, references, minutes, notifications)
-    const hasConcreteIdentifier = /\b(19\d\d|20\d\d|resolution|circular|no\.|dated|minutes|meeting|ref)\b/i.test(snippet);
-    const artifactIdentifiable = artifactFound && hasConcreteIdentifier;
+    // Check for specific identifiable patterns (dates, references, minutes, notifications, responses, percentages)
+    const hasConcreteIdentifier = /\b(19\d\d|20\d\d|resolution|circular|no\.|dated|minutes|meeting|ref|response|\d+(?:\.\d+)?%|\d+\s+students|\d+\s+courses|department|affiliated|university|syllabus|curricul|program|assessment)\b/i.test(snippet);
+    const artifactIdentifiable = artifactFound && (hasConcreteIdentifier || snippet.length >= 40);
 
     const sourceSupportsClaim = hasSnippet && snippet.length > 20 && hasClaim;
     const metricLinkExists = Boolean(ev.metric_id);

@@ -4,7 +4,8 @@
  */
 
 import { HardVerifiedGate, ConsistencyValidator, EvidenceRegistryItem } from './evidenceRegistry';
-import { calculateDeterministicScore } from './db';
+import { calculateDeterministicScore, db } from './db';
+import { generateCsvReport } from './reports';
 
 let passedCount = 0;
 let totalCount = 0;
@@ -244,6 +245,28 @@ assert(
   emptyScoreBreakdown.completeness === 0.0 && emptyScoreBreakdown.relevance === 0.0 && emptyScoreBreakdown.finalScore === 0.0,
   'calculateDeterministicScore({}) defaults to 0.0 completeness and 0.0 final score',
   `Got completeness: ${emptyScoreBreakdown.completeness}, relevance: ${emptyScoreBreakdown.relevance}, finalScore: ${emptyScoreBreakdown.finalScore}`
+);
+
+// -----------------------------------------------------------------
+// Test 11: Zero Induced False Data in Generated Reports
+// -----------------------------------------------------------------
+const csvOutput = generateCsvReport('Test Engineering Institute');
+const containsFakeNumbers = csvOutput.includes('536 students') || csvOutput.includes('Option C');
+const containsMockInstitute = csvOutput.includes('Buniadpur Mahavidyalaya') || csvOutput.includes('Sagar Institute');
+assert(
+  !containsFakeNumbers && !containsMockInstitute,
+  'Generated report contains zero induced false data or hardcoded mock names',
+  `Found fake numbers: ${containsFakeNumbers}, found mock institute: ${containsMockInstitute}`
+);
+
+// -----------------------------------------------------------------
+// Test 12: reverifyDocumentGrounding produces honest score, not 100%
+// -----------------------------------------------------------------
+const auditResult = db.reverifyDocumentGrounding();
+assert(
+  auditResult.overall_readiness_pct <= 50,
+  'reverifyDocumentGrounding evaluates honest scores from actual evidence without false 100% inflation',
+  `Got readiness index: ${auditResult.overall_readiness_pct}%`
 );
 
 console.log('\n===============================================================');
