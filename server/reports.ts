@@ -246,8 +246,8 @@ function formatPageCitation(page: number | string | null | undefined): string {
  * Generate 16-Section CSV Master Report
  */
 export function generateCsvReport(institution: string, documentId?: number): string {
-  const targetDoc = documentId ? db.documents.find(d => d.id === documentId) : (db.documents.length > 0 ? db.documents[0] : null);
-  const instName = (institution && institution !== 'Buniadpur Mahavidyalaya' && institution !== 'Higher Education Institution' && institution !== 'Sagar Institute of Research & Technology, Bhopal')
+  const targetDoc = documentId ? db.documents.find(d => d.id === documentId) : (db.documents.length > 0 ? db.documents[db.documents.length - 1] : null);
+  const instName = (institution && institution !== 'Higher Education Institution')
     ? institution
     : (targetDoc?.institution_name && targetDoc.institution_name !== 'Not reliably identified from document' && targetDoc.institution_name !== 'Higher Education Institution'
         ? targetDoc.institution_name
@@ -277,14 +277,19 @@ export function generateCsvReport(institution: string, documentId?: number): str
   const relScore = (isDemo || foundEvidences.length === 0) ? 0 : Math.round(foundEvidences.reduce((acc, e) => acc + (e.confidence || 0), 0) / foundEvidences.length);
   const govScore = isDemo ? 0 : (targetDoc?.validation_status === 'Fully Validated' ? 100 : (targetDoc?.hod_validated ? 50 : 0));
   const qScore = isDemo ? 0 : (targetDoc?.text_quality_score || 0);
-  const confList = db.conflicts.filter(c => c.status === 'Open' && (!targetDoc || c.sub_criterion === targetDoc.sub_criterion));
+  const confList = db.conflicts.filter(c => c.status === 'Open' && (!targetDoc || !targetDoc.sub_criterion || targetDoc.sub_criterion === 'All' || c.sub_criterion === targetDoc.sub_criterion || (targetDoc.filename && c.conflicting_documents.includes(targetDoc.filename))));
 
   const breakdown = calculateDeterministicScore({
     completeness: compScore,
     relevance: relScore,
     human_validation_score: govScore,
     text_quality_score: qScore,
-    conflicts_count: confList.length
+    conflicts_count: confList.length,
+    evidence_verified_count: verifiedCount,
+    evidence_partial_count: rawDocEvidence.filter(e => e.evidence_status === 'PARTIALLY_VERIFIED').length,
+    evidence_total_count: totalCount,
+    text_pages_count: targetDoc?.text_pages_count || pageCount,
+    ocr_pages_count: targetDoc?.ocr_pages_count || 0
   });
 
   const validation = runPreReportValidation(targetDoc, rawDocEvidence, rawGaps, rawRecs, breakdown, isDemo);
@@ -307,7 +312,11 @@ export function generateCsvReport(institution: string, documentId?: number): str
   lines.push('Field,Value');
   lines.push(`Document Name,"${docName}"`);
   lines.push(`Document Type,"${targetDoc?.document_type || 'SUPPORTED_ACADEMIC_EVIDENCE'}"`);
-  const authClassStr = isDemo ? 'DEMONSTRATION_ONLY' : 'LIKELY INSTITUTIONAL / AUTHENTICITY NOT VERIFIED';
+  const authClassStr = isDemo
+    ? 'DEMONSTRATION_ONLY'
+    : (targetDoc?.authenticity_classification === 'GENUINE_INSTITUTIONAL'
+        ? 'GENUINE_INSTITUTIONAL'
+        : 'LIKELY INSTITUTIONAL / AUTHENTICITY NOT VERIFIED');
   lines.push(`Authenticity Classification,"${authClassStr}"`);
   const allSubCriteriaList = ['1.1', '1.2', '1.3', '1.4'];
   const excludedSubList = allSubCriteriaList.filter(s => s !== targetSubCrit);
@@ -339,8 +348,11 @@ export function generateCsvReport(institution: string, documentId?: number): str
   lines.push('=== 3. GENUINENESS & AUTHENTICITY ASSESSMENT ===');
   lines.push('Field,Assessment Finding');
   lines.push(`Classification,"${authClassStr}"`);
-  lines.push(`Detection Signals,"${isDemo ? 'Found synthetic markers (DEMO DATA / DUMMY SSR / NOT REAL INSTITUTIONAL EVIDENCE)' : 'No synthetic markers detected in document text, stream typography, or metadata'}"`);
-  lines.push(`Evidence Reliability,"${isDemo ? 'Institutional accreditation readiness cannot be established from this document.' : 'Source appears to be institutional documentation; authenticity not physically verified. Automated evaluation cannot legally certify institutional authenticity without physical counter-signatures and institutional seal verification.'}"`);
+  const signalsStr = targetDoc?.authenticity_signals && targetDoc.authenticity_signals.length > 0
+    ? targetDoc.authenticity_signals.join('; ')
+    : (isDemo ? 'Found synthetic markers (DEMO DATA / DUMMY SSR)' : 'Institutional metadata & typography validated');
+  lines.push(`Detection Signals,"${signalsStr.replace(/"/g, '""')}"`);
+  lines.push(`Evidence Reliability,"${isDemo ? 'Institutional accreditation readiness cannot be established from this document.' : (targetDoc?.authenticity_classification === 'GENUINE_INSTITUTIONAL' ? 'High genuineness: Multi-signal verified institutional document. Meets statutory NAAC evidentiary format.' : 'Source appears to be institutional documentation; authenticity not physically verified.')}"`);
   lines.push(`Human Verification Requirement,"Original approved institutional records must be verified by academic governance authorities."`);
   lines.push('');
 
@@ -393,7 +405,7 @@ export function generateCsvReport(institution: string, documentId?: number): str
 
   // 6. EVIDENCE COVERAGE TABLE
   lines.push('=== 6. EVIDENCE COVERAGE TABLE ===');
-  lines.push('Metric ID,Sub-Criterion,Metric Name,Claim,Evidence Status,Evidence Strength (0-5),Source Page,Human Verification Status,Retrieval Confidence');
+  lines.push('Metric ID,Checkpoint,Sub-Criterion,Metric Name,Claim Status,AI Verification Status,AI Confidence,Human Verification Status,Evidence Status,Evidence Strength (0-5),Source Page');
   if (docEvidence.length > 0) {
     for (const ev of docEvidence) {
       const kItem = CRITERION_1_KNOWLEDGE_BASE.find(k => k.metric_id === ev.metric_id);
@@ -402,12 +414,14 @@ export function generateCsvReport(institution: string, documentId?: number): str
       const strength = isDemo ? 0 : (ev.evidence_strength !== undefined ? ev.evidence_strength : (ev.evidence_status === 'VERIFIED' ? 5 : 2));
       const humVal = isDemo ? 'HUMAN_VERIFICATION_REQUIRED' : (ev.human_verification_status || 'HUMAN_VERIFICATION_REQUIRED');
       const evStatus = isDemo ? 'DEMONSTRATION_ONLY' : (ev.evidence_status || 'NOT_VERIFIED');
-      lines.push(`"${ev.metric_id}","${ev.sub_criterion}","${kItem?.title || 'Criterion 1 Checkpoint'}","${(ev.claim_status === 'FOUND' ? 'Institutional practice documented' : 'Not found in the uploaded document.').replace(/"/g, '""')}","${evStatus}",${strength},"${pageStr}","${humVal}","${confStr}"`);
+      const cpName = ev.checkpoint_name || kItem?.title || 'Primary Documentary Evidence';
+      const aiStatus = ev.ai_verification_status || (ev.claim_status === 'FOUND' ? (ev.evidence_status === 'VERIFIED' ? 'AI_CONFIRMED' : 'AI_PARTIAL') : 'AI_NOT_FOUND');
+      lines.push(`"${ev.metric_id}","${cpName.replace(/"/g, '""')}","${ev.sub_criterion}","${kItem?.title || 'Criterion 1 Checkpoint'}","${ev.claim_status || 'NOT_FOUND'}","${aiStatus}","${confStr}","${humVal}","${evStatus}",${strength},"${pageStr}"`);
     }
   } else {
     const kbFiltered = isSingleSubCriterion ? CRITERION_1_KNOWLEDGE_BASE.filter(k => k.sub_criterion === targetSubCrit) : CRITERION_1_KNOWLEDGE_BASE;
     for (const kItem of kbFiltered) {
-      lines.push(`"${kItem.metric_id}","${kItem.sub_criterion}","${kItem.title}","Not found in the uploaded document.","NOT_VERIFIED",0,"Not Identified","NOT_VERIFIED","N/A"`);
+      lines.push(`"${kItem.metric_id}","Primary Documentary Evidence","${kItem.sub_criterion}","${kItem.title}","NOT_FOUND","AI_NOT_FOUND","N/A","NOT_VERIFIED","NOT_VERIFIED",0,"Not Identified"`);
     }
   }
   lines.push('');
@@ -476,15 +490,29 @@ export function generateCsvReport(institution: string, documentId?: number): str
   // 11. DOCUMENTS TO VERIFY / COLLECT
   lines.push('=== 11. DOCUMENTS TO VERIFY / COLLECT ===');
   lines.push('Item Number,Document Category,Supported NAAC Metric,Priority');
-  const missingDocs = Array.from(new Set(gaps.map(g => g.missing_evidence).filter(Boolean)));
-  if (missingDocs.length > 0) {
-    missingDocs.forEach((doc, idx) => {
-      const relatedGap = gaps.find(g => g.missing_evidence === doc);
-      const docPrio = isDemo ? 'DEMONSTRATION-ONLY EVIDENCE GAP' : (relatedGap?.severity === 'High' ? 'HIGH' : 'MEDIUM');
-      lines.push(`${idx + 1},"${doc.replace(/"/g, '""')}","Metric ${relatedGap?.metric_id || '1.1'}","${docPrio}"`);
-    });
+  const missingDocsMap = new Map<string, { metric: string; priority: string }>();
+  for (const g of gaps) {
+    if (g.missing_evidence && g.missing_evidence.trim()) {
+      const docPrio = isDemo ? 'DEMONSTRATION-ONLY EVIDENCE GAP' : (g.severity === 'High' || g.severity === 'Critical' ? 'HIGH' : 'MEDIUM');
+      missingDocsMap.set(g.missing_evidence.trim(), { metric: `Metric ${g.metric_id || '1.1'}`, priority: docPrio });
+    }
+  }
+  for (const r of recs) {
+    const docName = (r.target_evidence || r.required_document || '').trim();
+    if (docName && !missingDocsMap.has(docName)) {
+      const docPrio = isDemo ? 'DEMONSTRATION-ONLY EVIDENCE GAP' : (r.priority === 'High' || r.priority === 'Critical' ? 'HIGH' : 'MEDIUM');
+      missingDocsMap.set(docName, { metric: `Metric ${r.metric_id || '1.1'}`, priority: docPrio });
+    }
+  }
+
+  if (missingDocsMap.size > 0) {
+    let idx = 1;
+    for (const [docName, info] of missingDocsMap.entries()) {
+      lines.push(`${idx},"${docName.replace(/"/g, '""')}","${info.metric}","${info.priority}"`);
+      idx++;
+    }
   } else {
-    lines.push('1,"No additional document was identified from the analyzed evidence.","Criterion 1","None"');
+    lines.push('1,"All evaluated Criterion 1 metrics have verified evidence records. No additional documentary collection required from analyzed scope.","Criterion 1","None"');
   }
   lines.push('');
 
@@ -499,13 +527,11 @@ export function generateCsvReport(institution: string, documentId?: number): str
   // 13. DETERMINISTIC SCORE & EXPLAINABILITY
   lines.push('=== 13. DETERMINISTIC SCORE & EXPLAINABILITY ===');
   lines.push('Notice,"This is an internal evidence-readiness indicator and is not an official NAAC accreditation score. Feature attribution explains the contribution of evidence-derived scoring factors to the deterministic readiness index."');
-  lines.push('Factor,Weight,Raw Value,Contribution (pts),Total');
-  lines.push(`Evidence Completeness,0.35,${breakdown.completeness}%,${(breakdown.completeness * 0.35).toFixed(1)} pts,${(breakdown.completeness * 0.35).toFixed(1)}`);
-  lines.push(`Semantic Match Relevance,0.25,${breakdown.relevance}%,${(breakdown.relevance * 0.25).toFixed(1)} pts,${(breakdown.relevance * 0.25).toFixed(1)}`);
-  lines.push(`Human Governance,0.20,${breakdown.humanValidation}%,${(breakdown.humanValidation * 0.20).toFixed(1)} pts,${(breakdown.humanValidation * 0.20).toFixed(1)}`);
-  lines.push(`Document Quality,0.10,${breakdown.docQuality}%,${(breakdown.docQuality * 0.10).toFixed(1)} pts,${(breakdown.docQuality * 0.10).toFixed(1)}`);
-  lines.push(`Evidentiary Consistency,0.10,${breakdown.consistency}%,${(breakdown.consistency * 0.10).toFixed(1)} pts,${(breakdown.consistency * 0.10).toFixed(1)}`);
-  lines.push(`Total Readiness Score,1.00,${breakdown.finalScore}%,${breakdown.finalScore} pts,${breakdown.finalScore}%`);
+  lines.push('Factor,Weight,Raw Value,Contribution (pts),Evaluation Basis / Mathematical Derivation');
+  for (const comp of breakdown.components) {
+    lines.push(`"${comp.name}","${comp.weightPercentage}","${comp.rawScore.toFixed(1)}%","${comp.weightedScore.toFixed(2)} pts","${comp.derivationDetails.replace(/"/g, '""')}"`);
+  }
+  lines.push(`"Total Readiness Score","100%","${breakdown.finalScore}%","${breakdown.finalScore} pts","Σ(Weight_i × Raw_i) = ${breakdown.finalScore}% (CGPA Equivalent: ${breakdown.cgpa}, Grade: ${breakdown.grade})"`);
   lines.push('');
 
   // 14. HUMAN VERIFICATION REQUIRED
@@ -535,7 +561,7 @@ export function generateCsvReport(institution: string, documentId?: number): str
   const finalRecJust = isDemo
     ? 'Uploaded document is identified as a demonstration / synthetic / sample document. NAAC accreditation readiness cannot be established from sample or non-genuine institutional artifacts. Criterion 1 Evidence Readiness Index is an internal indicator and is not an official NAAC accreditation score.'
     : (normalizedFinalRec === 'READY'
-        ? 'All required Criterion 1 evidence artifacts are verified and substantiated with complete governance approvals.'
+        ? 'All evaluated Criterion 1 evidence checkpoints from the analyzed document meet baseline requirements.'
         : (normalizedFinalRec === 'INSUFFICIENT_EVIDENCE'
             ? 'Uploaded document does not contain enough verifiable documentary evidence to make a reliable accreditation judgement.'
             : 'Institutional curricular claims are identified in text, but supporting documentary evidence must be certified by institutional authorities before submission for NAAC peer-team audit.'));
@@ -579,7 +605,7 @@ export function generatePdfReport(institution: string, doc?: DocumentRecord): Pr
       pdf.on('end', () => resolve(Buffer.concat(buffers)));
       pdf.on('error', err => reject(err));
 
-      const targetDoc = doc || (db.documents.length > 0 ? db.documents[0] : null);
+      const targetDoc = doc || (db.documents.length > 0 ? db.documents[db.documents.length - 1] : null);
       const targetDocId = targetDoc ? targetDoc.id : 1;
       const targetDocName = (targetDoc ? (targetDoc.original_name || targetDoc.filename) : 'Criterion1_Evidence_SSR.pdf') || 'Criterion1_Evidence_SSR.pdf';
       const targetSubCrit = targetDoc ? targetDoc.sub_criterion : '1.1';
@@ -650,7 +676,7 @@ export function generatePdfReport(institution: string, doc?: DocumentRecord): Pr
       };
 
       const instName = (typeof targetDoc?.institution_name === 'string' && targetDoc.institution_name !== 'Not reliably identified from document' && targetDoc.institution_name !== 'Higher Education Institution' ? targetDoc.institution_name : null) || 
-                       (typeof institution === 'string' && institution !== 'Buniadpur Mahavidyalaya' && institution !== 'Higher Education Institution' && institution !== 'Sagar Institute of Research & Technology, Bhopal' ? institution : null) || 
+                       (typeof institution === 'string' && institution !== 'Higher Education Institution' ? institution : null) || 
                        'Higher Education Institution';
 
       // -------------------------------------------------------------
@@ -1026,7 +1052,7 @@ export function generatePdfReport(institution: string, doc?: DocumentRecord): Pr
           : rawEvText
             ? `Evidence Found: "${rawEvText.slice(0, 200)}..." (${formatPageCitation(ev.page_number)})${evStatusTag}`
             : `Evidence Status: Evidence text not located in uploaded document. (${formatPageCitation(ev.page_number)}) — artifact requires physical verification.${evStatusTag}`;
-        const gapText = gap ? `Gap Identified: ${gap.description.slice(0, 140)}` : 'Evidence fully substantiated against NAAC standard.';
+        const gapText = gap ? `Gap Identified: ${gap.description.slice(0, 140)}` : 'Evidence verified against NAAC benchmark in analyzed document.';
 
         const hTitle = pdf.fontSize(8).font('Helvetica-Bold').heightOfString(titleText, { width: textWidth });
         const hReq = pdf.fontSize(7).font('Helvetica').heightOfString(reqText, { width: textWidth });
@@ -1199,18 +1225,34 @@ export function generatePdfReport(institution: string, doc?: DocumentRecord): Pr
       pdf.font('Helvetica-Bold').fontSize(10).fillColor('#0f172a').text('11. Documents to Verify / Collect');
       pdf.moveDown(0.2);
 
-      const missingArtifacts = Array.from(new Set(targetGaps.map(g => g.missing_evidence).filter(Boolean)));
-      if (missingArtifacts.length === 0) {
-        pdf.fontSize(7.5).font('Helvetica').fillColor('#15803d').text('No additional document was identified from the analyzed evidence.', 44, pdf.y);
+      const pdfMissingDocsMap = new Map<string, { metric: string; priority: string }>();
+      for (const g of targetGaps) {
+        if (g.missing_evidence && g.missing_evidence.trim()) {
+          const docPrio = isDemo ? 'DEMONSTRATION-ONLY EVIDENCE GAP' : (g.severity === 'High' || g.severity === 'Critical' ? 'HIGH' : 'MEDIUM');
+          pdfMissingDocsMap.set(g.missing_evidence.trim(), { metric: `Metric ${g.metric_id || '1.1'}`, priority: docPrio });
+        }
+      }
+      for (const r of targetRecs) {
+        const docName = (r.target_evidence || r.required_document || '').trim();
+        if (docName && !pdfMissingDocsMap.has(docName)) {
+          const docPrio = isDemo ? 'DEMONSTRATION-ONLY EVIDENCE GAP' : (r.priority === 'High' || r.priority === 'Critical' ? 'HIGH' : 'MEDIUM');
+          pdfMissingDocsMap.set(docName, { metric: `Metric ${r.metric_id || '1.1'}`, priority: docPrio });
+        }
+      }
+
+      if (pdfMissingDocsMap.size === 0) {
+        pdf.fontSize(7.5).font('Helvetica').fillColor('#15803d').text('All evaluated Criterion 1 metrics have verified evidence records. No additional documentary collection required from analyzed scope.', 44, pdf.y, { width: CONTENT_WIDTH - 16 });
         pdf.moveDown(0.4);
       } else {
-        missingArtifacts.forEach((docItem, idx) => {
-          const itemText = `${idx + 1}.  ${docItem}`;
+        let idx = 1;
+        for (const [docItem, info] of pdfMissingDocsMap.entries()) {
+          const itemText = `${idx}.  ${docItem} [${info.metric}] (Priority: ${info.priority})`;
           const hItem = pdf.fontSize(7.5).font('Helvetica').heightOfString(itemText, { width: CONTENT_WIDTH - 16 });
           checkPageBreak(hItem + 6);
           pdf.fontSize(7.5).font('Helvetica').fillColor('#334155').text(itemText, 44, pdf.y, { width: CONTENT_WIDTH - 16 });
           pdf.moveDown(0.25);
-        });
+          idx++;
+        }
       }
 
       // =============================================================
@@ -1348,7 +1390,7 @@ export function generatePdfReport(institution: string, doc?: DocumentRecord): Pr
       const pdfJustText = isDemo
         ? 'Uploaded document is identified as a demonstration / synthetic / sample document. NAAC accreditation readiness cannot be established from sample or non-genuine institutional artifacts. This is an internal evidence-readiness indicator and is not an official NAAC accreditation score.'
         : (normalizedPdfStatus === 'READY'
-            ? 'All required Criterion 1 evidence artifacts are verified and substantiated with complete governance approvals. This is an internal evidence-readiness indicator and is not an official NAAC accreditation score.'
+            ? 'All evaluated Criterion 1 evidence checkpoints from the analyzed document meet baseline requirements. This is an internal evidence-readiness indicator and is not an official NAAC accreditation score.'
             : (normalizedPdfStatus === 'INSUFFICIENT_EVIDENCE'
                 ? 'Uploaded document does not contain enough verifiable documentary evidence to make a reliable accreditation judgement. This is an internal evidence-readiness indicator and is not an official NAAC accreditation score.'
                 : 'Institutional curricular practices are identified in text, but supporting documentary evidence must be certified by institutional authorities before submission for NAAC DVV peer-team audit. This is an internal evidence-readiness indicator and is not an official NAAC accreditation score.'));

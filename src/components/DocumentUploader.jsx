@@ -4,7 +4,7 @@ import { UploadCloud, FileText, CheckCircle2, AlertCircle, Loader2, Sparkles, Do
 
 const DocumentUploader = ({ onUploadSuccess }) => {
   const [file, setFile] = useState(null);
-  const [subCriterion, setSubCriterion] = useState('1.1');
+  const [subCriterion, setSubCriterion] = useState('All');
   const [uploading, setUploading] = useState(false);
   const [activeDocStatus, setActiveDocStatus] = useState(null);
   const [message, setMessage] = useState(null);
@@ -287,6 +287,7 @@ const DocumentUploader = ({ onUploadSuccess }) => {
               onChange={(e) => setSubCriterion(e.target.value)}
               className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-800 text-sm focus:outline-none focus:border-blue-500 focus:bg-white font-medium"
             >
+              <option value="All">All — Complete Criterion 1 (Sub-criteria 1.1, 1.2, 1.3, 1.4)</option>
               <option value="1.1">1.1 Curriculum Design and Development (PO, PSO, CO, Syllabus Revision)</option>
               <option value="1.2">1.2 Academic Flexibility (Open Electives, CBCS, MOOCs, Credit Transfer)</option>
               <option value="1.3">1.3 Curriculum Enrichment (Value-Added Courses, Ethics, Seminars)</option>

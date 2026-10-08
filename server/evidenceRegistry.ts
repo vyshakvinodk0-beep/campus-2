@@ -1,7 +1,11 @@
 /**
  * Evidence Registry & Hard Verification Gate
  * CampusInsight AI - Deterministic Evidence Integrity Firewall
+ * Backed by Python Engine (server/evidence_registry.py) with TypeScript Fallback
  */
+
+import { spawnSync } from 'child_process';
+import path from 'path';
 
 export interface NumberProvenance {
   metric_id: string;
@@ -30,6 +34,9 @@ export interface EvidenceRegistryItem {
   page_number: number | null;
   metric_id: string;
   sub_criterion?: string;
+  checkpoint_id?: string;
+  checkpoint_name?: string;
+  ai_verification_status?: string;
   artifact_type: string;
   expected_artifact: string;
   found_artifact: string;
@@ -58,13 +65,44 @@ export interface GateEvaluationResult {
   passes_gate: boolean;
 }
 
+const PYTHON_REGISTRY_SCRIPT = path.resolve(process.cwd(), 'server', 'evidence_registry.py');
+
+/**
+ * Executes the Python Evidence Registry Engine via subprocess IPC.
+ * Gracefully returns null if Python is unavailable or errors, enabling seamless fallback.
+ */
+function runPythonRegistry(mode: string, payload: any): any {
+  try {
+    const payloadStr = JSON.stringify(payload);
+    const proc = spawnSync('python', [PYTHON_REGISTRY_SCRIPT, mode, payloadStr], {
+      timeout: 3000,
+      encoding: 'utf-8',
+      windowsHide: true
+    });
+    if (proc.status === 0 && proc.stdout) {
+      return JSON.parse(proc.stdout.trim());
+    }
+  } catch (_err) {
+    // Fail-safe: fallback to deterministic TypeScript implementation
+  }
+  return null;
+}
+
 /**
  * Hard Verification Gate
  * The LLM must NEVER have final authority over evidence verification.
  * Deterministic rules strictly govern whether any evidence can be marked VERIFIED.
+ * Evaluated via Python Evidence Engine with deterministic TS fallback.
  */
 export class HardVerifiedGate {
   public static evaluate(item: Partial<EvidenceRegistryItem>): GateEvaluationResult {
+    // 1. Try Python Evidence Firewall
+    const pyResult = runPythonRegistry('--evaluate', item);
+    if (pyResult && pyResult.final_status && Array.isArray(pyResult.reasons)) {
+      return pyResult as GateEvaluationResult;
+    }
+
+    // 2. Deterministic Fallback
     const reasons: string[] = [];
 
     // Rule 1: Demonstration / Synthetic Document Gate
@@ -139,8 +177,18 @@ export class HardVerifiedGate {
  */
 export class ConsistencyValidator {
   public static check(registry: EvidenceRegistryItem[], completenessScore: number, gapsCount: number): { valid: boolean; errors: string[] } {
-    const errors: string[] = [];
+    // 1. Try Python Consistency Validator
+    const pyResult = runPythonRegistry('--validate', {
+      registry,
+      completeness_score: completenessScore,
+      gaps_count: gapsCount
+    });
+    if (pyResult && typeof pyResult.valid === 'boolean' && Array.isArray(pyResult.errors)) {
+      return pyResult;
+    }
 
+    // 2. Deterministic Fallback
+    const errors: string[] = [];
     const verifiedItems = registry.filter(i => i.backend_verified_status === 'VERIFIED');
     
     // Check 1: Verified items must have positive page numbers and extracted text
@@ -191,11 +239,26 @@ export function buildRegistryFromPipeline(
     confidence?: number | null;
     is_demo_synthetic?: boolean;
     verification_notes?: string;
+    checkpoint_id?: string;
+    checkpoint_name?: string;
+    ai_verification_status?: string;
   }>,
   isDemo: boolean,
   documentId: number | string,
   documentName: string
 ): EvidenceRegistryItem[] {
+  // 1. Try Python Pipeline Builder
+  const pyResult = runPythonRegistry('--build-pipeline', {
+    evidence_list: evidenceList,
+    is_demo: isDemo,
+    document_id: documentId,
+    document_name: documentName
+  });
+  if (Array.isArray(pyResult) && pyResult.length === evidenceList.length) {
+    return pyResult as EvidenceRegistryItem[];
+  }
+
+  // 2. Deterministic Fallback
   return evidenceList.map((ev, index) => {
     const evidenceId = ev.evidence_id || `EV-${documentId}-${ev.metric_id}-${index + 1}`;
     const pageNum = ev.source_page ?? null;
@@ -222,6 +285,9 @@ export function buildRegistryFromPipeline(
       page_number: pageNum,
       metric_id: ev.metric_id,
       sub_criterion: ev.sub_criterion,
+      checkpoint_id: ev.checkpoint_id,
+      checkpoint_name: ev.checkpoint_name,
+      ai_verification_status: ev.ai_verification_status,
       artifact_type: ev.evidence_type || 'Unknown Artifact',
       expected_artifact: `Mandatory NAAC documentation for metric ${ev.metric_id}`,
       found_artifact: artifactFound ? (ev.evidence_type || 'Documentary Evidence') : 'EVIDENCE_NOT_FOUND',

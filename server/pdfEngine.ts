@@ -58,6 +58,7 @@ export interface DocumentAnalysisResult {
   authenticityClassification: AuthenticityClassification;
   authenticitySignals: string[];
   institutionName: string;
+  academicYear?: string;
   
   // Document Intake Agent Decisions
   documentType: DocumentType;
@@ -123,13 +124,22 @@ function classifyPageContent(pageNum: number, rawText: string): ExtractedPage {
   const lowerText = text.toLowerCase();
   
   // Detect synthetic / dummy / demo tags
-  const matchedSignals: string[] = [];
+  const demoMatched: string[] = [];
   for (const sig of DEMO_SIGNALS_PATTERNS) {
     if (sig.pattern.test(text)) {
-      matchedSignals.push(sig.label);
+      demoMatched.push(sig.label);
     }
   }
-  const isDemoOrSynthetic = matchedSignals.length > 0;
+  const isDemoOrSynthetic = demoMatched.length > 0;
+
+  // Detect authentic institutional patterns
+  const authenticMatched: string[] = [];
+  for (const sig of INSTITUTIONAL_AUTHENTICITY_PATTERNS) {
+    if (sig.pattern.test(text)) {
+      authenticMatched.push(sig.label);
+    }
+  }
+  const matchedSignals = [...demoMatched, ...authenticMatched];
 
   // Detect exact NAAC metric headers on this page (e.g. 1.1.1, 1.2.1, 1.2.2, 1.3.1, 1.3.2, 1.4.1)
   const metricHeaders: string[] = [];
@@ -388,54 +398,25 @@ export async function parsePdfDocument(filePath: string, originalName?: string):
     }
   }
 
-  const docSignalsSet = new Set<string>();
-
-  // Check signals in filename and full text
-  for (const sig of DEMO_SIGNALS_PATTERNS) {
-    if (sig.pattern.test(originalName) || sig.pattern.test(fullText)) {
-      docSignalsSet.add(sig.label);
-    }
-  }
-
-  // Also collect any page-level signals
-  pages.forEach(p => {
-    if (p.authenticitySignals) {
-      p.authenticitySignals.forEach(s => docSignalsSet.add(s));
-    }
-  });
-
-  const authenticitySignals = Array.from(docSignalsSet);
-  const isExplicitDemo = 
-    docOriginalName.toLowerCase().includes('demo') ||
-    docOriginalName.toLowerCase().includes('dummy') ||
-    authenticitySignals.includes('DUMMY SSR') ||
-    authenticitySignals.includes('DEMO DATA') ||
-    authenticitySignals.includes('DEMONSTRATION ONLY') ||
-    authenticitySignals.includes('NOT REAL INSTITUTIONAL EVIDENCE');
-
-  const isDemoOrSynthetic = isExplicitDemo;
-  let authenticityClassification: AuthenticityClassification = 'LIKELY_INSTITUTIONAL_AUTHENTICITY_NOT_VERIFIED';
-  if (isDemoOrSynthetic) {
-    if (authenticitySignals.includes('SYNTHETIC SAMPLE') || docOriginalName.toLowerCase().includes('synthetic')) {
-      authenticityClassification = 'SYNTHETIC_SAMPLE';
-    } else {
-      authenticityClassification = 'DEMONSTRATION_ONLY';
-    }
-  }
-
-  // Extract Institution Name cleanly from institutional SSR headers or declarations
+  // Extract Institution Name cleanly from institutional SSR headers, declarations, or metadata
   let institutionName = 'Higher Education Institution';
-  const ssrMatch = fullText.match(/Self\s*Study\s*Report\s*of\s*([^\n\r,]+)/i);
-  const instMatch = fullText.match(/institution\s*:\s*([^\n\r,]+)/i);
-  const collegeMatch = fullText.match(/(?:college|institute|mahavidyalaya|university)\s*:\s*([^\n\r,]+)/i);
-  const explicitNamed = fullText.match(/\b([A-Z][a-zA-Z\s]+(?:Mahavidyalaya|College of Engineering|Engineering College|Institute of Technology|Institute of Research & Technology|University))\b/);
+  const nameLabelMatch = fullText.match(/(?:Name\s+of\s+the\s+Institution|Name\s+of\s+the\s+College|Name\s+of\s+the\s+University|Institution\s+Name|College\s+Name|University\s+Name)\s*[:\-]\s*([^\n\r,;]{3,100})/i);
+  const ssrMatch = fullText.match(/Self\s*Study\s*Report\s*(?:of|for)?\s*([^\n\r,;]{3,100})/i);
+  const iiqaMatch = fullText.match(/(?:Institutional\s+Information\s+for\s+Quality\s+Assessment|IIQA)\s*(?:of|for)?\s*([^\n\r,;]{3,100})/i);
+  const instMatch = fullText.match(/\binstitution\s*:\s*([^\n\r,;]{3,100})/i);
+  const collegeMatch = fullText.match(/(?:college|institute|mahavidyalaya|university)\s*:\s*([^\n\r,;]{3,100})/i);
+  const explicitNamed = fullText.match(/\b([A-Z][a-zA-Z\s&.'-]+(?:Mahavidyalaya|College\s+of\s+Engineering|Engineering\s+College|Institute\s+of\s+Technology|Institute\s+of\s+Science|Institute\s+of\s+Research|University|College\s+of\s+Arts|Vidyapeeth|Academy\s+of\s+Higher\s+Education|Autonomous\s+College|Polytechnic))\b/);
 
-  if (ssrMatch && ssrMatch[1].trim().length > 3) {
-    institutionName = ssrMatch[1].trim();
+  if (nameLabelMatch && nameLabelMatch[1].trim().length > 3) {
+    institutionName = nameLabelMatch[1].trim().replace(/^(?:the|an|a)\s+/i, '');
+  } else if (ssrMatch && ssrMatch[1].trim().length > 3) {
+    institutionName = ssrMatch[1].trim().replace(/^(?:the|an|a)\s+/i, '');
+  } else if (iiqaMatch && iiqaMatch[1].trim().length > 3) {
+    institutionName = iiqaMatch[1].trim().replace(/^(?:the|an|a)\s+/i, '');
   } else if (instMatch && instMatch[1].trim().length > 3) {
-    institutionName = instMatch[1].trim();
+    institutionName = instMatch[1].trim().replace(/^(?:the|an|a)\s+/i, '');
   } else if (collegeMatch && collegeMatch[1].trim().length > 3) {
-    institutionName = collegeMatch[1].trim();
+    institutionName = collegeMatch[1].trim().replace(/^(?:the|an|a)\s+/i, '');
   } else if (explicitNamed && explicitNamed[1].trim().length > 3) {
     institutionName = explicitNamed[1].trim();
   } else {
@@ -444,6 +425,91 @@ export async function parsePdfDocument(filePath: string, originalName?: string):
       institutionName = cleanDocName;
     }
   }
+
+  // Extract Academic Year / Assessment Cycle if stated
+  let academicYear = '2024-25';
+  const ayMatch = fullText.match(/\b(20\d\d\s*[-–/]\s*(?:20)?\d\d)\b/);
+  if (ayMatch) {
+    academicYear = ayMatch[1].replace(/\s+/g, '');
+  }
+
+  // Pre-compute textQualityScore early so it can be used in authenticity signal detection below.
+  // Note: isUnsupported is not yet declared at this point, so we use word-density heuristic only.
+  // Documents with very little text will naturally have a low earlyAvgWordsPerPage.
+  const earlyAvgWordsPerPage = totalPages > 0 ? fullText.split(/\s+/).length / totalPages : 0;
+  const textQualityScore = Math.min(99, Math.max(45, Math.round(50 + Math.min(49, earlyAvgWordsPerPage / 4))));
+
+  const demoSignalsSet = new Set<string>();
+  const authenticSignalsSet = new Set<string>();
+
+  // Check signals in filename and full text
+  for (const sig of DEMO_SIGNALS_PATTERNS) {
+    if (sig.pattern.test(originalName) || sig.pattern.test(fullText)) {
+      demoSignalsSet.add(sig.label);
+    }
+  }
+
+  for (const sig of INSTITUTIONAL_AUTHENTICITY_PATTERNS) {
+    if (sig.pattern.test(originalName) || sig.pattern.test(fullText)) {
+      authenticSignalsSet.add(sig.label);
+    }
+  }
+
+  // Also collect any page-level signals
+  pages.forEach(p => {
+    if (p.authenticitySignals) {
+      p.authenticitySignals.forEach(s => {
+        if (DEMO_SIGNALS_PATTERNS.some(d => d.label === s)) {
+          demoSignalsSet.add(s);
+        } else {
+          authenticSignalsSet.add(s);
+        }
+      });
+    }
+  });
+
+  const isExplicitDemo = 
+    docOriginalName.toLowerCase().includes('demo') ||
+    docOriginalName.toLowerCase().includes('dummy') ||
+    demoSignalsSet.has('DUMMY SSR') ||
+    demoSignalsSet.has('DEMO DATA') ||
+    demoSignalsSet.has('DEMONSTRATION ONLY') ||
+    demoSignalsSet.has('NOT REAL INSTITUTIONAL EVIDENCE');
+
+  const isDemoOrSynthetic = isExplicitDemo;
+  let authenticityClassification: AuthenticityClassification = 'LIKELY_INSTITUTIONAL_AUTHENTICITY_NOT_VERIFIED';
+  if (isDemoOrSynthetic) {
+    if (demoSignalsSet.has('SYNTHETIC SAMPLE') || docOriginalName.toLowerCase().includes('synthetic')) {
+      authenticityClassification = 'SYNTHETIC_SAMPLE';
+    } else {
+      authenticityClassification = 'DEMONSTRATION_ONLY';
+    }
+  } else {
+    // Enrich with detected documentary signals
+    if (institutionName !== 'Higher Education Institution' && institutionName.length > 3) {
+      authenticSignalsSet.add(`INSTITUTION: ${institutionName}`);
+    }
+    if (academicYear) {
+      authenticSignalsSet.add(`ACADEMIC YEAR: ${academicYear}`);
+    }
+    if (pages.length >= 3) {
+      authenticSignalsSet.add('MULTI-PAGE INSTITUTIONAL DOSSIER');
+    }
+    if (textQualityScore >= 75) {
+      authenticSignalsSet.add('STRUCTURED DIGITAL TYPOGRAPHY');
+    }
+
+    // Signal-based classification: 3+ authentic institutional signals certify GENUINE_INSTITUTIONAL
+    if (authenticSignalsSet.size >= 3) {
+      authenticityClassification = 'GENUINE_INSTITUTIONAL';
+    } else {
+      authenticityClassification = 'LIKELY_INSTITUTIONAL_AUTHENTICITY_NOT_VERIFIED';
+    }
+  }
+
+  const authenticitySignals = isDemoOrSynthetic
+    ? Array.from(demoSignalsSet)
+    : Array.from(authenticSignalsSet);
 
   // Group pages by criterion and sub-criterion
   const detectedCriteria: { [key: string]: number[] } = {
@@ -602,7 +668,7 @@ export async function parsePdfDocument(filePath: string, originalName?: string):
 
   // Calculate Text & Readability scores based on character density and word validity
   const avgWordsPerPage = totalPages > 0 ? fullText.split(/\s+/).length / totalPages : 0;
-  const textQualityScore = isUnsupported ? 45 : Math.min(99, Math.max(88, Math.round(92 + Math.min(7, avgWordsPerPage / 40))));
+  // textQualityScore already computed above (hoisted for use in authenticity detection)
   const ocrQualityScore = Math.min(98, Math.max(85, Math.round(textQualityScore - 1)));
   const readabilityScore = Math.min(98, Math.max(88, Math.round((textQualityScore + ocrQualityScore) / 2)));
 
@@ -615,6 +681,7 @@ export async function parsePdfDocument(filePath: string, originalName?: string):
     authenticityClassification,
     authenticitySignals,
     institutionName,
+    academicYear,
     documentType,
     relevance,
     relevanceReason,

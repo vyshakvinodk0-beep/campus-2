@@ -155,6 +155,7 @@ export interface DocumentRecord {
   final_recommendation_status?: 'READY' | 'MOSTLY READY' | 'PARTIALLY READY' | 'NOT READY' | 'INSUFFICIENT EVIDENCE';
   authenticity_classification?: 'DEMONSTRATION_ONLY' | 'SYNTHETIC_SAMPLE' | 'LIKELY_INSTITUTIONAL_AUTHENTICITY_NOT_VERIFIED' | 'GENUINE_INSTITUTIONAL';
   authenticity_signals?: string[];
+  conflicts_count?: number;
 }
 
 export interface EvidenceItem {
@@ -175,6 +176,9 @@ export interface EvidenceItem {
   evidence_strength?: number; // 0 to 5
   human_verification_status?: 'VERIFIED' | 'HUMAN_VERIFICATION_REQUIRED' | 'NOT_VERIFIED';
   claim_vs_artifact_status?: 'ARTIFACT_VERIFIED' | 'CLAIM_PRESENT_ARTIFACT_NOT_VERIFIED' | 'EVIDENCE_NOT_FOUND';
+  checkpoint_id?: string;
+  checkpoint_name?: string;
+  ai_verification_status?: string;
 }
 
 export interface DocumentConflict {
@@ -288,6 +292,11 @@ export function calculateDeterministicScore(params: {
   human_validation_score?: number;
   text_quality_score?: number;
   conflicts_count?: number;
+  evidence_verified_count?: number;
+  evidence_partial_count?: number;
+  evidence_total_count?: number;
+  text_pages_count?: number;
+  ocr_pages_count?: number;
 }): ScoreBreakdown {
   const completeness = params.completeness !== undefined ? params.completeness : 0.0;
   const relevance = params.relevance !== undefined ? params.relevance : 0.0;
@@ -306,6 +315,7 @@ export function calculateDeterministicScore(params: {
   }
 
   const docQuality = params.text_quality_score !== undefined ? params.text_quality_score : 0.0;
+  const conflictsCount = params.conflicts_count !== undefined ? params.conflicts_count : 0;
   const consistency = params.conflicts_count !== undefined
     ? (params.conflicts_count === 0 ? 100.0 : Math.max(0.0, 100.0 - params.conflicts_count * 15.0))
     : 0.0;
@@ -330,6 +340,14 @@ export function calculateDeterministicScore(params: {
 
   const formula = 'Final Score = (Completeness × 0.35) + (Semantic Relevance × 0.25) + (Human Governance × 0.20) + (Document Extraction Quality × 0.10) + (Evidentiary Consistency × 0.10)';
 
+  const completenessDetail = params.evidence_total_count !== undefined && params.evidence_total_count > 0
+    ? `Derived from ${params.evidence_verified_count || 0} verified checkpoints (× 1.0) and ${params.evidence_partial_count || 0} partial checkpoints (× 0.5) out of ${params.evidence_total_count} total evaluated checkpoints: ((${params.evidence_verified_count || 0}×1.0 + ${params.evidence_partial_count || 0}×0.5) / ${params.evidence_total_count}) × 100 = ${completeness.toFixed(1)}%. Weighted: ${completeness.toFixed(1)}% × 0.35 = ${weightedCompleteness.toFixed(2)}%.`
+    : `Percentage of NAAC Criterion 1 required evidence checkpoints verified in document (${completeness.toFixed(1)}% × 0.35 = ${weightedCompleteness.toFixed(2)}%).`;
+
+  const qualityDetail = params.text_pages_count !== undefined || params.ocr_pages_count !== undefined
+    ? `Digital text extraction fidelity (${params.text_pages_count || 0} digital text pages, ${params.ocr_pages_count || 0} OCR pages). Quality score = ${docQuality.toFixed(1)}% (${docQuality.toFixed(1)}% × 0.10 = ${weightedDocQuality.toFixed(2)}%).`
+    : `Quantifies character extraction clarity, typography stream consistency, and digital parsing reliability (${docQuality.toFixed(1)}% × 0.10 = ${weightedDocQuality.toFixed(2)}%).`;
+
   const components: ScoreComponentExplanation[] = [
     {
       name: 'Evidence Completeness',
@@ -338,7 +356,7 @@ export function calculateDeterministicScore(params: {
       rawScore: completeness,
       weightedScore: weightedCompleteness,
       formula: `${completeness.toFixed(1)}% × 0.35 = ${weightedCompleteness.toFixed(2)}%`,
-      derivationDetails: `Percentage of NAAC Criterion 1 required evidence checkpoints substantiated in the document (${completeness.toFixed(1)}% × 0.35 = ${weightedCompleteness.toFixed(2)}%).`
+      derivationDetails: completenessDetail
     },
     {
       name: 'Semantic Match Relevance',
@@ -347,7 +365,7 @@ export function calculateDeterministicScore(params: {
       rawScore: relevance,
       weightedScore: weightedRelevance,
       formula: `${relevance.toFixed(1)}% × 0.25 = ${weightedRelevance.toFixed(2)}%`,
-      derivationDetails: `Average RAG retrieval confidence and semantic alignment of extracted evidence against NAAC Criterion 1 benchmarks (${relevance.toFixed(1)}% × 0.25 = ${weightedRelevance.toFixed(2)}%).`
+      derivationDetails: `Average semantic matching confidence and RAG retrieval score across verified Criterion 1 metric citations (${relevance.toFixed(1)}% × 0.25 = ${weightedRelevance.toFixed(2)}%).`
     },
     {
       name: 'Human Governance & Validation',
@@ -356,7 +374,7 @@ export function calculateDeterministicScore(params: {
       rawScore: humanValidation,
       weightedScore: weightedHumanValidation,
       formula: `${humanValidation.toFixed(1)}% × 0.20 = ${weightedHumanValidation.toFixed(2)}%`,
-      derivationDetails: `Statutory institutional human review: HOD physical verification (up to 50%) + Principal sign-off (up to 50%). Current raw governance score = ${humanValidation.toFixed(1)}% (${humanValidation.toFixed(1)}% × 0.20 = ${weightedHumanValidation.toFixed(2)}%).`
+      derivationDetails: `Statutory institutional human review: HOD physical verification (up to 50%) + Principal sign-off (up to 50%). Current raw governance status = '${params.validation_status || 'Pending HOD Validation'}' (${humanValidation.toFixed(1)}% × 0.20 = ${weightedHumanValidation.toFixed(2)}%).`
     },
     {
       name: 'Document Text & OCR Quality',
@@ -365,7 +383,7 @@ export function calculateDeterministicScore(params: {
       rawScore: docQuality,
       weightedScore: weightedDocQuality,
       formula: `${docQuality.toFixed(1)}% × 0.10 = ${weightedDocQuality.toFixed(2)}%`,
-      derivationDetails: `Quantifies character extraction clarity, typography stream consistency, and digital parsing reliability (${docQuality.toFixed(1)}% × 0.10 = ${weightedDocQuality.toFixed(2)}%).`
+      derivationDetails: qualityDetail
     },
     {
       name: 'Evidentiary Consistency',
@@ -374,7 +392,7 @@ export function calculateDeterministicScore(params: {
       rawScore: consistency,
       weightedScore: weightedConsistency,
       formula: `${consistency.toFixed(1)}% × 0.10 = ${weightedConsistency.toFixed(2)}%`,
-      derivationDetails: `Evaluates cross-page numerical & entity harmony (student intake, academic years, course counts). Raw score = ${consistency.toFixed(1)}% (${consistency.toFixed(1)}% × 0.10 = ${weightedConsistency.toFixed(2)}%).`
+      derivationDetails: `Cross-page numerical & statutory entity audit. Detected ${conflictsCount} discrepancies across pages. Consistency score = ${consistency.toFixed(1)}% (${consistency.toFixed(1)}% × 0.10 = ${weightedConsistency.toFixed(2)}%).`
     }
   ];
 

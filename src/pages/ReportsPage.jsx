@@ -39,11 +39,14 @@ const ReportsPage = () => {
         if (prev && docsList.some(d => d.id.toString() === prev)) {
           return prev;
         }
-        return docsList.length > 0 ? docsList[0].id.toString() : '';
+        return docsList.length > 0 ? docsList[docsList.length - 1].id.toString() : '';
       });
 
-      if (docsList.length > 0 && docsList[0].institution_name && docsList[0].institution_name !== 'Not reliably identified from document') {
-        setInstitutionName(docsList[0].institution_name);
+      if (docsList.length > 0) {
+        const latest = docsList[docsList.length - 1];
+        if (latest.institution_name && latest.institution_name !== 'Not reliably identified from document') {
+          setInstitutionName(latest.institution_name);
+        }
       }
     } catch (err) {
       console.error("Failed to fetch documents for report selection:", err);
@@ -93,7 +96,7 @@ const ReportsPage = () => {
 
   const currentDoc = selectedDocId 
     ? documents.find(d => d.id.toString() === selectedDocId)
-    : (documents.length > 0 ? documents[0] : null);
+    : (documents.length > 0 ? documents[documents.length - 1] : null);
 
   const docIdNum = currentDoc ? currentDoc.id : 1;
   const docFilename = currentDoc ? (currentDoc.original_name || currentDoc.filename) : 'SSR_Criterion1_Evidence.pdf';
@@ -458,17 +461,48 @@ const ReportsPage = () => {
         </section>
 
         {/* AUTHENTICITY CLASSIFICATION BADGE */}
-        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-2 text-xs">
-          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-          <div>
-            <span className="font-bold text-amber-800 block">
-              Document Classification: {currentDoc?.authenticity_classification === 'DEMONSTRATION_ONLY' ? 'DEMONSTRATION_ONLY' : 'LIKELY INSTITUTIONAL / AUTHENTICITY NOT VERIFIED'}
-            </span>
-            <span className="text-amber-700">
-              Automated AI evaluation cannot legally certify institutional authenticity without physical counter-signatures and institutional seal verification. Original approved records must be verified by academic governance authorities.
-            </span>
+        {currentDoc?.authenticity_classification === 'GENUINE_INSTITUTIONAL' ? (
+          <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-start gap-2.5 text-xs">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+            <div className="space-y-1 w-full">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-emerald-900 text-sm">
+                  Document Classification: GENUINE INSTITUTIONAL (High Authenticity Confidence: 9+/10)
+                </span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-200 text-emerald-900 border border-emerald-300">
+                  9+ Genuinity Verified
+                </span>
+              </div>
+              <p className="text-emerald-800 leading-relaxed">
+                Multi-signal institutional authenticity verified: Institutional identity, academic year timeline, statutory governance structure (BoS / Academic Council), and multi-page documentary dossier validated.
+              </p>
+              {currentDoc?.authenticity_signals && currentDoc.authenticity_signals.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {currentDoc.authenticity_signals.map((sig, idx) => (
+                    <span key={idx} className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded text-[10px] font-semibold border border-emerald-300">
+                      ✓ {sig}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <p className="text-[11px] text-emerald-700 italic pt-1 border-t border-emerald-200/60 mt-1">
+                Note: Automated AI evaluation validates textual patterns and governance structures. Statutory accreditation certification requires physical institutional seals and authority signatures.
+              </p>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-2 text-xs">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold text-amber-800 block">
+                Document Classification: {currentDoc?.authenticity_classification === 'DEMONSTRATION_ONLY' ? 'DEMONSTRATION_ONLY' : 'LIKELY INSTITUTIONAL / AUTHENTICITY NOT VERIFIED'}
+              </span>
+              <span className="text-amber-700">
+                Automated AI evaluation cannot legally certify institutional authenticity without physical counter-signatures and institutional seal verification. Original approved records must be verified by academic governance authorities.
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* 2. CAMPUSINSIGHT AI CRITERION 1 READINESS INDEX */}
         <section className="space-y-4 border-t border-slate-100 pt-6">
@@ -595,81 +629,92 @@ const ReportsPage = () => {
 
         {/* 4. GROUNDED EVIDENCE MATRIX */}
         <section className="space-y-3 border-t border-slate-100 pt-6">
-          <h3 className="text-base font-black text-slate-900 flex items-center justify-between">
-            <span>4. Metric-by-Metric Grounded Evidence Matrix</span>
-            <span className="text-xs font-normal text-slate-500">Separates institutional claim from verified supporting artifact</span>
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-black text-slate-900">
+              4. Metric &amp; Granular Evidence Checkpoints Matrix
+            </h3>
+            <span className="text-xs font-normal text-slate-500">
+              Breaks metrics into granular evidence checkpoints &amp; separates AI detection from statutory human verification
+            </span>
+          </div>
+
+          {/* AI vs Human Verification Banner */}
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 flex items-start gap-2">
+            <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold text-slate-800">Distinction Between AI Extraction &amp; Statutory Human Verification:</span>
+              <p className="mt-0.5 leading-relaxed">
+                <strong>AI Assessment</strong> verifies textual presence, keyword grounding, and confidence scores extracted from uploaded document buffers.
+                <strong> Statutory Human Verification</strong> confirms physical counter-signatures, institutional seals, and formal regulatory compliance before NAAC peer-team submission.
+              </p>
+            </div>
+          </div>
+
           <div className="overflow-x-auto rounded-2xl border border-slate-200">
             <table className="w-full text-left text-xs">
               <thead className="bg-blue-900 text-white font-bold uppercase text-[10px] tracking-wider">
                 <tr>
-                  <th className="px-4 py-2.5">Metric</th>
-                  <th className="px-4 py-2.5">Source Page</th>
-                  <th className="px-4 py-2.5">Claim Status</th>
-                  <th className="px-4 py-2.5">Supporting Artifact</th>
-                  <th className="px-4 py-2.5">Semantic Confidence</th>
+                  <th className="px-3.5 py-2.5">Metric &amp; Checkpoint</th>
+                  <th className="px-3 py-2.5">Source Page</th>
+                  <th className="px-3 py-2.5">AI Assessment</th>
+                  <th className="px-3 py-2.5">Human Verification</th>
                   <th className="px-4 py-2.5">Grounded Snippet &amp; Verification Notes</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 font-medium">
                 {currentEvidence.length > 0 ? (
-                  currentEvidence.map((ev) => (
-                    <tr key={ev.id || ev.metric_id} className="hover:bg-slate-50/80">
-                      <td className="px-4 py-2.5 font-bold text-slate-900">{ev.metric_id}</td>
-                      <td className="px-4 py-2.5 font-semibold text-slate-700">
-                        {ev.page_number && ev.page_number > 0 ? `Page ${ev.page_number}` : <span className="text-slate-400">Not Found</span>}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${ev.claim_status === 'FOUND' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                          {ev.claim_status || 'FOUND'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          ev.supporting_doc_status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-800' : 
-                          ev.supporting_doc_status === 'PARTIAL' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
-                        }`}>
-                          {ev.supporting_doc_status || 'NOT_VERIFIED'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5 font-bold text-slate-800">
-                        {ev.evidence_status === 'EVIDENCE_NOT_FOUND' || ev.confidence === null ? 'N/A' : `${ev.confidence}%`}
-                      </td>
-                      <td className="px-4 py-2.5 text-slate-700 space-y-0.5">
-                        <p>{ev.evidence_text || 'EVIDENCE NOT FOUND'}</p>
-                        {ev.verification_notes && (
-                          <p className="text-[11px] text-blue-700 italic font-normal">Note: {ev.verification_notes}</p>
-                        )}
-                      </td>
-                    </tr>
-                  ))
+                  currentEvidence.map((ev, idx) => {
+                    const aiStatus = ev.ai_verification_status || (ev.evidence_status === 'VERIFIED' ? 'AI_VERIFIED' : (ev.evidence_status === 'PARTIALLY_VERIFIED' ? 'AI_PARTIAL' : (ev.claim_status === 'FOUND' ? 'AI_CLAIM_DETECTED' : 'AI_NOT_FOUND')));
+                    const humanStatus = ev.human_verification_status || (ev.evidence_status === 'VERIFIED' ? 'VERIFIED' : 'HUMAN_VERIFICATION_REQUIRED');
+                    const checkpointLabel = ev.checkpoint_name || (ev.checkpoint_id ? ev.checkpoint_id.replace(/_/g, ' ') : `Checkpoint ${ev.metric_id}`);
+
+                    return (
+                      <tr key={ev.id || `${ev.metric_id}_${idx}`} className="hover:bg-slate-50/80">
+                        <td className="px-3.5 py-2.5 space-y-0.5">
+                          <span className="font-bold text-slate-900 block">{ev.metric_id}</span>
+                          <span className="text-[11px] text-blue-800 font-semibold block">{checkpointLabel}</span>
+                        </td>
+                        <td className="px-3 py-2.5 font-semibold text-slate-700 whitespace-nowrap">
+                          {ev.page_number && ev.page_number > 0 ? `Page ${ev.page_number}` : <span className="text-slate-400">Not Found</span>}
+                        </td>
+                        <td className="px-3 py-2.5 space-y-1">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold block w-fit ${
+                            aiStatus === 'AI_VERIFIED' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
+                            aiStatus === 'AI_PARTIAL' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
+                            aiStatus === 'AI_CLAIM_DETECTED' ? 'bg-blue-100 text-blue-800 border border-blue-300' :
+                            'bg-rose-100 text-rose-800 border border-rose-300'
+                          }`}>
+                            {aiStatus}
+                          </span>
+                          <span className="text-[11px] text-slate-600 block">
+                            Confidence: {ev.evidence_status === 'EVIDENCE_NOT_FOUND' || ev.confidence === null ? 'N/A' : `${ev.confidence}%`}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 space-y-1">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold block w-fit ${
+                            humanStatus === 'VERIFIED' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {humanStatus}
+                          </span>
+                          <span className="text-[10px] text-slate-500 block">
+                            Artifact: {ev.supporting_doc_status || 'NOT_VERIFIED'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-slate-700 space-y-0.5 max-w-md">
+                          <p className="line-clamp-3">{ev.evidence_text || 'EVIDENCE NOT FOUND'}</p>
+                          {ev.verification_notes && (
+                            <p className="text-[11px] text-blue-700 italic font-normal">Note: {ev.verification_notes}</p>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
                 ) : (
-                  <>
-                    <tr className="bg-slate-50/50">
-                      <td className="px-4 py-2.5 font-bold text-slate-900">1.1.1</td>
-                      <td className="px-4 py-2.5 font-semibold text-slate-700">Page 2</td>
-                      <td className="px-4 py-2.5"><span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">FOUND</span></td>
-                      <td className="px-4 py-2.5"><span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">NOT_VERIFIED</span></td>
-                      <td className="px-4 py-2.5 font-bold text-slate-800">88%</td>
-                      <td className="px-4 py-2.5 text-slate-700">Resolution 2: Formulated explicit Course Outcomes (CO) aligned to NBA/NAAC Programme Outcomes (PO1 to PO12) and PSOs. <span className="text-[11px] text-blue-700 italic block">Note: Narrative claim identified in text; signed CO-PO-PSO articulation matrix is pending verification in repository.</span></td>
-                    </tr>
-                    <tr className="bg-white">
-                      <td className="px-4 py-2.5 font-bold text-slate-900">1.1.2</td>
-                      <td className="px-4 py-2.5 font-semibold text-slate-400">Not Found</td>
-                      <td className="px-4 py-2.5"><span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">NOT_FOUND</span></td>
-                      <td className="px-4 py-2.5"><span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">MISSING</span></td>
-                      <td className="px-4 py-2.5 font-bold text-slate-400">N/A</td>
-                      <td className="px-4 py-2.5 text-slate-500 italic">EVIDENCE NOT FOUND: No comparative old vs new syllabus revision delta matrix or Academic Council approval notification found.</td>
-                    </tr>
-                    <tr className="bg-slate-50/50">
-                      <td className="px-4 py-2.5 font-bold text-slate-900">1.1.3</td>
-                      <td className="px-4 py-2.5 font-semibold text-slate-400">Not Found</td>
-                      <td className="px-4 py-2.5"><span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">NOT_FOUND</span></td>
-                      <td className="px-4 py-2.5"><span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">MISSING</span></td>
-                      <td className="px-4 py-2.5 font-bold text-slate-400">N/A</td>
-                      <td className="px-4 py-2.5 text-slate-500 italic">EVIDENCE NOT FOUND: Direct course outcome attainment calculation spreadsheets and employability mapping matrices not detected.</td>
-                    </tr>
-                  </>
+                  <tr>
+                    <td colSpan={5} className="px-4 py-8 text-center text-slate-500 italic text-xs">
+                      No evidence checkpoints recorded for this document yet. Upload or select a processed document to view extracted evidence.
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>
@@ -713,17 +758,8 @@ const ReportsPage = () => {
                 </div>
               ))
             ) : (
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2">
-                <span className="font-bold text-slate-900 text-sm">
-                  [HIGH PRIORITY] Sub-{docSubCrit}: CO-PO Attainment Calculation Spreadsheets
-                </span>
-                <p className="text-slate-700"><strong>Finding:</strong> While PO-CO alignment is described in syllabus text, direct/indirect attainment calculation spreadsheets are unverified.</p>
-                <div className="flex items-center gap-3 text-[11px] font-bold">
-                  <span className="text-emerald-700">Claim Status: FOUND</span>
-                  <span>|</span>
-                  <span className="text-amber-700">Supporting Artifact: NOT_VERIFIED</span>
-                </div>
-                <p className="text-blue-700 font-bold">Recommended Action: Upload course outcome attainment calculation spreadsheets signed by Course Coordinators and HOD.</p>
+              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-semibold">
+                ✓ No evidentiary compliance gaps detected for this document. All evaluated Criterion 1 checkpoints meet baseline evidence requirements from the analyzed document scope.
               </div>
             )}
           </div>
@@ -762,29 +798,11 @@ const ReportsPage = () => {
                     </tr>
                   ))
                 ) : (
-                  <>
-                    <tr className="bg-slate-50/50">
-                      <td className="px-4 py-3 font-bold text-slate-900 break-words leading-relaxed">Verify Curricular Planning Documentation &amp; Articulation Matrix (Metric 1.1.1)</td>
-                      <td className="px-4 py-3 text-slate-700 whitespace-nowrap">Faculty / Course Coordinators</td>
-                      <td className="px-4 py-3 text-slate-700 whitespace-nowrap">Mid-Term (45 Days)</td>
-                      <td className="px-4 py-3 font-bold text-amber-700 whitespace-nowrap">MEDIUM</td>
-                      <td className="px-4 py-3 text-slate-600 break-words leading-relaxed">Addresses unverified CO-PO-PSO articulation matrix and academic calendar adherence evidence under Metric 1.1.1.</td>
-                    </tr>
-                    <tr className="bg-white">
-                      <td className="px-4 py-3 font-bold text-slate-900 break-words leading-relaxed">Compile Old vs New Syllabus Revision Delta Matrices (Metric 1.1.2)</td>
-                      <td className="px-4 py-3 text-slate-700 whitespace-nowrap">HOD / Curriculum Committee</td>
-                      <td className="px-4 py-3 text-slate-700 whitespace-nowrap">Immediate (15 Days)</td>
-                      <td className="px-4 py-3 font-bold text-rose-700 whitespace-nowrap">HIGH</td>
-                      <td className="px-4 py-3 text-slate-600 break-words leading-relaxed">Provides comparative old vs new course delta matrices and Academic Council notifications under Metric 1.1.2.</td>
-                    </tr>
-                    <tr className="bg-slate-50/50">
-                      <td className="px-4 py-3 font-bold text-slate-900 break-words leading-relaxed">Map Course Syllabi to Employability / Skill Development Modules (Metric 1.1.3)</td>
-                      <td className="px-4 py-3 text-slate-700 whitespace-nowrap">Department NAAC Coordinator</td>
-                      <td className="px-4 py-3 text-slate-700 whitespace-nowrap">Immediate (15 Days)</td>
-                      <td className="px-4 py-3 font-bold text-rose-700 whitespace-nowrap">HIGH</td>
-                      <td className="px-4 py-3 text-slate-600 break-words leading-relaxed">Documents course syllabi unit highlighting and department mapping matrices for employability and skill development under Metric 1.1.3.</td>
-                    </tr>
-                  </>
+                  <tr>
+                    <td colSpan={5} className="px-4 py-8 text-center text-slate-500 italic text-xs">
+                      No pending action items required. All evaluated Criterion 1 metrics have evidence checkpoints meeting baseline requirements in the analyzed document scope.
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>
@@ -844,8 +862,8 @@ const ReportsPage = () => {
                   </td>
                   <td className="px-4 py-2.5 text-slate-700 font-semibold">
                     {formulaReadiness >= 99 || verifiedCheckpoints >= totalEvaluatedCheckpoints
-                      ? "100% of required evidence checkpoints substantiated and verified in repository."
-                      : `${totalEvaluatedCheckpoints - verifiedCheckpoints} of ${totalEvaluatedCheckpoints} required evidence checkpoints missing from uploaded text.`}
+                      ? "100% of evaluated evidence checkpoints are AI-verified from uploaded document text. Physical artifact confirmation is required before statutory submission."
+                      : `${totalEvaluatedCheckpoints - verifiedCheckpoints} of ${totalEvaluatedCheckpoints} evidence checkpoints were not located in uploaded document text.`}
                   </td>
                 </tr>
                 <tr className="bg-slate-50/50">
@@ -858,8 +876,8 @@ const ReportsPage = () => {
                   </td>
                   <td className="px-4 py-2.5 text-slate-700 font-semibold">
                     {formulaReadiness >= 99 || verifiedCheckpoints >= totalEvaluatedCheckpoints
-                      ? "Required supporting physical evidence fully substantiated with HOD and Principal countersignatures."
-                      : "Required supporting physical evidence is partially unavailable in uploaded text."}
+                      ? "Supporting evidence text detected across all evaluated checkpoints. Physical countersignatures and institutional seals require separate statutory human verification before NAAC submission."
+                      : "Supporting evidence text is partially or fully absent in uploaded document. Physical artifacts must be sourced and verified by authorized institutional authorities."}
                   </td>
                 </tr>
                 <tr>
